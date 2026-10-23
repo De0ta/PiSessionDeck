@@ -6,6 +6,7 @@ import { join, resolve } from "node:path";
 import { discoverAndLoadExtensions, SessionManager, type CustomEditor, type ExtensionCommandContext, type SessionInfo } from "@earendil-works/pi-coding-agent";
 import { KeybindingsManager, ProcessTerminal, TuiMainScreen, TUI_KEYBINDINGS, type EditorTheme } from "@earendil-works/pi-tui";
 import { deferred, session, tick } from "./fixtures.ts";
+import { createFocusGuard } from "../src/overlay.ts";
 
 type EditorFactory = NonNullable<ReturnType<ExtensionCommandContext["ui"]["getEditorComponent"]>>;
 async function harness(run: (state: Awaited<ReturnType<typeof setup>>) => Promise<void>) {
@@ -44,7 +45,7 @@ async function setup(dir: string) {
   const emit = async (event: string) => {
     for (const handler of extension.handlers.get(event) ?? []) await handler({ type: event }, ctx);
   };
-  return { state, ctx, emit, notices, switches, order, sent, command, get factory() { return factory; } };
+  return { state, ctx, emit, notices, switches, order, sent, command, handlers: extension.handlers, get factory() { return factory; } };
 }
 
 test("真实Pi加载器加载入口；编辑器桥接已注册命令，保留文字与原生提交", async () => harness(async (h) => {
@@ -133,6 +134,65 @@ test("恢复必须先关闭UI、确认、切换；忙碌或取消不切换", asy
   assert.equal(h.switches.length, 1);
   assert.match(h.notices.at(-1)!, /状态已改变/);
 }));
+
+test("浏览器使用终端100%覆盖层，不再替换聊天主组件", async () => harness(async (h) => {
+  assert.equal(h.handlers.has("message_end"), false, "pre-persistence event must not read stale details");
+  assert.ok(h.handlers.has("tool_execution_start"));
+  assert.ok(h.handlers.has("turn_end"));
+  h.ctx.ui.custom = async <T>(_factory: Parameters<typeof h.ctx.ui.custom>[0], options?: Parameters<typeof h.ctx.ui.custom>[1]) => {
+    assert.equal(options?.overlay, true);
+    assert.ok(options?.overlayOptions && typeof options.overlayOptions !== "function");
+    const { visible, ...layout } = options.overlayOptions;
+    assert.deepEqual(layout, { width: "100%", maxHeight: "100%", row: 0, col: 0, margin: 0 });
+    assert.equal(typeof visible, "function");
+    assert.equal(typeof options.onHandle, "function");
+    return undefined as T;
+  };
+  await h.command.handler("", h.ctx);
+  assert.equal(h.switches.length, 0);
+}));
+
+test("原生覆盖层关闭后恢复原编辑器焦点与底层内容", () => {
+  const terminal = new ProcessTerminal();
+  terminal.write = () => {}; terminal.hideCursor = () => {}; terminal.showCursor = () => {};
+  const tui = new TuiMainScreen(terminal); // Never write to or attach stdin of the real terminal.
+  tui.requestRender = () => {};
+  const editor = { focused: false, render: () => ["UNCHANGED DRAFT"], handleInput() {}, invalidate() {} };
+  const overlay = { focused: false, render: () => ["Session manager"], handleInput() {}, invalidate() {} };
+  tui.addChild(editor);
+  tui.setFocus(editor);
+  const handle = tui.showOverlay(overlay, { width: "100%", maxHeight: "100%", row: 0, col: 0, margin: 0 });
+  assert.equal(tui.getFocusedComponent(), overlay);
+  assert.equal(tui.hasOverlay(), true);
+  handle.hide();
+  assert.equal(tui.getFocusedComponent(), editor);
+  assert.equal(editor.focused, true);
+  assert.equal(tui.hasOverlay(), false);
+  assert.deepEqual(tui.render(120), ["UNCHANGED DRAFT"]);
+});
+
+test("普通权限弹窗获得焦点时，整屏覆盖立即让出并安全关闭", async () => {
+  const terminal = new ProcessTerminal();
+  terminal.write = () => {}; terminal.hideCursor = () => {}; terminal.showCursor = () => {};
+  const tui = new TuiMainScreen(terminal);
+  tui.requestRender = () => {};
+  const editor = { render: () => ["EDITOR"], handleInput() {}, invalidate() {} };
+  const permission = { render: () => ["Permission?"], handleInput() {}, invalidate() {} };
+  const overlay = { render: () => ["BROWSER"], handleInput() {}, invalidate() {} };
+  tui.addChild(editor); tui.addChild(permission); tui.setFocus(editor);
+  let closed = 0;
+  const guard = createFocusGuard(() => { closed++; handle.hide(); });
+  const handle = tui.showOverlay(overlay, { visible: guard.visible });
+  guard.onHandle(handle);
+  assert.equal(guard.visible(), true);
+  tui.setFocus(permission);
+  assert.equal(guard.visible(), false, "hide in the same render, before the microtask");
+  assert.equal(guard.visible(), false);
+  await tick();
+  assert.equal(closed, 1);
+  assert.equal(tui.hasOverlay(), false);
+  assert.equal(tui.getFocusedComponent(), permission, "never steal focus from the permission dialog");
+});
 
 test("重复命令不重入；shutdown后延迟返回不会切换或覆盖其他编辑器", async () => harness(async (h) => {
   await h.emit("session_start");

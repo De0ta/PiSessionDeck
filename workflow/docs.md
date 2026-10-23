@@ -6,7 +6,7 @@
 - 本机此前核查：Codex CLI `0.164.0`，`@earendil-works/pi-coding-agent` `1.4.0`。
 - 本轮终端核查：Windows/Git Bash，Node `v24.13.0`，`process.platform === "win32"`。这不是 WSL 运行时。
 - Pi 原生 `/resume` 已具备历史搜索、恢复、重命名、删除和范围切换；本项目轻量界面增强浏览与预览，不替代其全部功能。
-- 项目包名 `pi-session-viewer`、命令 `/session-browser`、版本 `0.1.0`；私有仓库 <https://github.com/De0ta/PiSessionViewer>。未发布 npm 包。
+- 项目包名 `pi-session-viewer`、命令 `/session-browser`、版本 `0.2.0`；私有仓库 <https://github.com/De0ta/PiSessionViewer>。未发布 npm 包。
 - Pi 扩展可提供自定义 TUI、编辑器和终端输入监听。空输入左键入口技术上可实现，不必向模型发送 prompt。
 
 ## 已找到的外部方案
@@ -33,6 +33,8 @@
 - 使用 Pi 1.4 公开 API 自研 Windows 友好的轻量版，不安装 Linux host，不使用 Pi 私有接口；依赖兼容区间 `>=1.4.0 <1.5.0`。
 - 可以在任务运行时浏览，但运行中或有待处理消息时不允许恢复；确认前后均复查状态。
 - 已有自定义编辑器时不覆盖，提示使用命令；默认编辑器由 CustomEditor 子类保留原生行为。
-- 预览仅只读文件 + 内存投影，不使用可能写回迁移的 SessionManager.open()。
-- 不检测其他进程写入同一会话，明确提示用户；当前会话标记不是运行状态。
-- 技术细节与验证边界见[轻量版设计与验证](../docs/lightweight-v0.1.md)。真实终端和跨项目端到端验收仍待完成。
+- 全屏 UI 使用公开 `ctx.ui.custom(..., { overlay: true, overlayOptions: { width: "100%", maxHeight: "100%", row: 0, col: 0, margin: 0 } })`；逐行填满终端行列，不替换聊天组件。
+- 默认全部历史；`Tab` 过滤、`F3` 搜索、`g` 分组、`?` 帮助，窄屏左右切列表/详情。
+- 详情只读文件 + 内存解析；模型/推理由投影获取，首问/最后回复从完整当前分支解析并应用该分支的 context_edit，不被压缩裁掉；不使用 SessionManager.open()。
+- 当前进程状态来自 `isIdle()` / `hasPendingMessages()`，其他历史只标记 `Saved`；不检测跨进程活动，不推测安全接管。
+- 技术细节与验证边界见[全屏改版设计与验证](../docs/fullscreen-v0.2.md)。真实终端和跨项目端到端验收仍待完成。

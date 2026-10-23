@@ -43,5 +43,5 @@ test("显示数据清除终端逃逸、控制符和多行标题", () => {
   assert.equal(safeText("\x1b[31m红\x1b[0m\x07\n标题"), "红 标题");
   assert.equal(safeText("行一\n行二", true), "行一\n行二");
   assert.equal(sessionTitle(session("a", { name: "  标题\n二  " })), "标题 二");
-  assert.equal(activityTime(new Date(Number.NaN)), "未知时间");
+  assert.equal(activityTime(new Date(Number.NaN)), "Unknown");
 });

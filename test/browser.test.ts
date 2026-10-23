@@ -11,7 +11,7 @@ function create(repository: SessionRepository, currentFile?: string) {
   const completed: (SessionInfo | undefined)[] = [];
   let renders = 0;
   const browser = new SessionBrowser({
-    cwd, currentFile, repository, theme: { fg: (_color, text) => text, bold: (text) => text },
+    cwd, currentFile, repository, theme: { style: (text) => text },
     keybindings: { matches: (data, action) => matchesKey(data, action === "tui.select.up" ? "up" : "down") },
     requestRender: () => { renders++; }, height: () => 24, done: (value) => completed.push(value),
   });
@@ -19,7 +19,7 @@ function create(repository: SessionRepository, currentFile?: string) {
   return { browser, completed, get renders() { return renders; } };
 }
 function repo(sessions: SessionInfo[]): SessionRepository {
-  return { list: async () => sessions, preview: async (s) => ({ messages: [{ role: "user", text: `预览 ${s.id}` }] }) };
+  return { list: async () => sessions, preview: async (s) => ({ messages: [], details: { model: "openai/test", reasoning: "high", prompt: `预览 ${s.id}`, lastMessage: "Latest reply" } }) };
 }
 
 test("宽屏双栏、中英文宽度、窄屏详情、搜索、Enter恢复", async () => {
@@ -33,10 +33,14 @@ test("宽屏双栏、中英文宽度、窄屏详情、搜索、Enter恢复", asy
     assert.equal(lines.length, 24);
   }
   assert.ok(browser.render(120).some((line) => line.includes("│")));
+  browser.handleInput("\x1b[13~"); // F3 opens search explicitly
   browser.handleInput("needle");
   await tick();
   assert.equal(browser.selected?.id, "b");
-  browser.handleInput("\t");
+  browser.handleInput("\x1b"); // Esc exits search, not the page
+  browser.handleInput("\x1b[B");
+  await tick();
+  browser.handleInput("\x1b[C"); // narrow view: details
   assert.ok(browser.render(60).join("\n").includes("预览 b"));
   browser.handleInput("\r");
   assert.deepEqual(completed, [b]);
@@ -67,7 +71,7 @@ test("无结果Enter不关闭；Ctrl+O重新扫描范围；Ctrl+R刷新", async 
   assert.equal(completed.length, 0);
   browser.handleInput("\x0f"); await tick();
   browser.handleInput("\x12"); await tick();
-  assert.deepEqual(scopes, ["project", "all", "all"]);
+  assert.deepEqual(scopes, ["all", "project", "project"]);
   browser.close();
 });
 
@@ -88,8 +92,8 @@ test("过期扫描/预览不覆盖新选中内容；关闭时中止并停止重�
   scan1.resolve([session("obsolete")]); await tick();
   assert.equal(browser.selected?.id, "a");
   browser.handleInput("\x1b[B");
-  secondPreview.resolve({ messages: [{ role: "user", text: "最新预览" }] }); await tick();
-  firstPreview.resolve({ messages: [{ role: "user", text: "过期预览" }] }); await tick();
+  secondPreview.resolve({ messages: [], details: { prompt: "最新预览" } }); await tick();
+  firstPreview.resolve({ messages: [], details: { prompt: "过期预览" } }); await tick();
   const screen = browser.render(120).join("\n");
   assert.ok(screen.includes("最新预览")); assert.ok(!screen.includes("过期预览"));
   browser.close();

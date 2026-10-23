@@ -4,7 +4,13 @@ import type { SessionInfo } from "@earendil-works/pi-coding-agent";
 
 export type Scope = "project" | "all";
 export interface PreviewMessage { role: "user" | "assistant"; text: string }
-export interface Preview { messages: PreviewMessage[]; note?: string }
+export interface TaskDetails {
+  model?: string;
+  reasoning?: string;
+  prompt?: string;
+  lastMessage?: string;
+}
+export interface Preview { messages: PreviewMessage[]; details?: TaskDetails; note?: string }
 
 /** Session text is data, never terminal control sequences. */
 export function safeText(text: string, multiline = false): string {
@@ -22,7 +28,7 @@ export function pathKey(path: string, platform = process.platform): string {
 }
 
 export function sessionTitle(session: SessionInfo): string {
-  return safeText(session.name || session.firstMessage || "未命名会话");
+  return safeText(session.name || session.firstMessage || "Untitled task");
 }
 
 export function filterSessions(sessions: readonly SessionInfo[], query: string, scope: Scope, cwd: string): SessionInfo[] {
@@ -55,8 +61,19 @@ export function mergeSessions(...groups: readonly SessionInfo[][]): SessionInfo[
   return [...unique.values()];
 }
 
-export function activityTime(date: Date): string {
-  if (!Number.isFinite(date.getTime())) return "未知时间";
-  const n = (value: number) => String(value).padStart(2, "0");
-  return `${n(date.getMonth() + 1)}-${n(date.getDate())} ${n(date.getHours())}:${n(date.getMinutes())}`;
+export function activityTime(date: Date, now = Date.now()): string {
+  if (!Number.isFinite(date.getTime())) return "Unknown";
+  const minutes = Math.max(0, Math.floor((now - date.getTime()) / 60_000));
+  if (minutes < 1) return "now";
+  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 1440) return `${Math.floor(minutes / 60)}h ago`;
+  return `${Math.floor(minutes / 1440)}d ago`;
+}
+
+export const SESSION_COLORS = ["#79c9da", "#d8a0b5", "#a7d58e", "#acb9ec", "#dbbd82", "#c3a2df", "#8dcbb7", "#e49e94"] as const;
+/** Identity colors must not change with selection, sort order, or refresh. */
+export function sessionColor(id: string): (typeof SESSION_COLORS)[number] {
+  let hash = 2166136261;
+  for (const char of id) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
+  return SESSION_COLORS[(hash >>> 0) % SESSION_COLORS.length]!;
 }

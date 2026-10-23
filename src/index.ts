@@ -3,6 +3,7 @@ import { SessionBrowser } from "./browser.ts";
 import { BrowserEditor } from "./editor.ts";
 import { pathKey, safeText } from "./model.ts";
 import { createRepository } from "./repository.ts";
+import { createFocusGuard } from "./overlay.ts";
 
 const COMMAND = "session-browser";
 type EditorFactory = NonNullable<ReturnType<ExtensionContext["ui"]["getEditorComponent"]>>;
@@ -19,18 +20,20 @@ export default function sessionViewer(pi: ExtensionAPI): void {
       if (ctx.mode !== "tui" || !ctx.hasUI || opening || shuttingDown) return;
       opening = true;
       try {
+        const guard = createFocusGuard(() => browser?.close());
         const selection = await ctx.ui.custom<SessionInfo | undefined>((tui, theme, keybindings, done) => {
           browser = new SessionBrowser({
             cwd: ctx.cwd,
             currentFile: ctx.sessionManager.getSessionFile(),
+            currentStatus: () => !ctx.isIdle() ? "Working" : ctx.hasPendingMessages() ? "Queued" : "Ready",
             repository: createRepository(ctx),
             theme, keybindings,
             requestRender: () => tui.requestRender(),
-            height: () => Math.max(7, tui.terminal.rows - 3),
+            height: () => Math.max(1, tui.terminal.rows),
             done,
           });
           return browser;
-        });
+        }, { overlay: true, overlayOptions: { width: "100%", maxHeight: "100%", row: 0, col: 0, margin: 0, visible: guard.visible }, onHandle: guard.onHandle });
         browser = undefined;
         if (!selection || shuttingDown) return;
         if (pathKey(selection.path) === pathKey(ctx.sessionManager.getSessionFile() ?? "")) return;
@@ -59,6 +62,13 @@ export default function sessionViewer(pi: ExtensionAPI): void {
       }
     },
   });
+
+  pi.on("agent_start", () => { browser?.refreshCurrent(); });
+  pi.on("agent_settled", () => { browser?.refreshCurrent(); });
+  // message_end extensions run BEFORE persistence. These events run after the
+  // relevant message append, including before a potentially long-running tool.
+  pi.on("tool_execution_start", () => { browser?.refreshCurrent(); });
+  pi.on("turn_end", () => { browser?.refreshCurrent(); });
 
   pi.on("session_start", (_event, ctx) => {
     shuttingDown = false;

@@ -18,6 +18,7 @@ test("真实SessionManager发现合成会话；当前会话预览来自内存，
     const currentFile = join(dir, "not-on-disk.jsonl");
     const ctx = { cwd: dir, sessionManager: {
       getSessionDir: () => dir, getSessionFile: () => currentFile,
+      getBranch: () => memory.getBranch(),
       buildSessionProjection: () => memory.buildSessionProjection(),
     } } as unknown as ExtensionContext;
     const repository = createRepository(ctx);
@@ -27,6 +28,7 @@ test("真实SessionManager发现合成会话；当前会话预览来自内存，
     assert.match(sessions[0]!.allMessagesText, /可搜索中文消息/);
     const preview = await repository.preview(session("current", { path: currentFile, cwd: dir }), new AbortController().signal);
     assert.equal(preview.messages[0]!.text, "尚未写入文件的当前消息");
+    assert.equal(preview.details?.prompt, "尚未写入文件的当前消息");
     assert.equal(await readFile(path, "utf8"), text);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });

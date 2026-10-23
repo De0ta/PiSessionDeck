@@ -3,7 +3,7 @@ import {
   parseSessionEntries, SessionManager,
   type ExtensionContext, type FileEntry, type SessionInfo, type SessionProjection,
 } from "@earendil-works/pi-coding-agent";
-import { mergeSessions, pathKey, safeText, type Preview, type Scope } from "./model.ts";
+import { mergeSessions, pathKey, safeText, type Preview, type Scope, type TaskDetails } from "./model.ts";
 
 export interface SessionRepository {
   list(scope: Scope, signal: AbortSignal): Promise<SessionInfo[]>;
@@ -24,6 +24,36 @@ export function messagesToPreview(messages: SessionProjection["messages"]): Prev
   return { messages: result.slice(-8), note: "当前分支最近 8 条用户/助手文本；不含思考与工具输出。" };
 }
 
+type DetailManager = Pick<ExtensionContext["sessionManager"], "getBranch" | "buildSessionProjection">;
+
+function textContent(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content.filter((part) => part && part.type === "text" && typeof part.text === "string").map((part) => part.text).join("\n");
+}
+
+export function previewFromManager(manager: DetailManager): Preview {
+  const projection = manager.buildSessionProjection();
+  const branch = manager.getBranch();
+  const edits = new Map(branch.flatMap((entry) => entry.type === "context_edit" ? [[entry.targetId, entry.replacement] as const] : []));
+  const messages = branch.filter((entry) => entry.type === "message");
+  const resolve = (entry: (typeof messages)[number] | undefined): string | undefined => {
+    if (!entry) return undefined;
+    const edit = edits.get(entry.id);
+    if (edits.has(entry.id) && edit === null) return "[Omitted from context]";
+    const text = safeText(textContent(edit ? edit.content : "content" in entry.message ? entry.message.content : undefined), true).trim();
+    if (!text) return "[No text content]";
+    return text.slice(0, 6000) + (text.length > 6000 ? "\n[Truncated]" : "");
+  };
+  const details: TaskDetails = {
+    model: projection.model ? `${projection.model.provider}/${projection.model.modelId}` : undefined,
+    reasoning: projection.thinkingLevel,
+    prompt: resolve(messages.find((entry) => entry.message.role === "user")),
+    lastMessage: resolve(messages.findLast((entry) => entry.message.role === "assistant")),
+  };
+  return { messages: messagesToPreview(projection.messages).messages, details };
+}
+
 /** Parse in memory only. SessionManager.open() may rewrite legacy files. */
 export function previewFromText(text: string, cwd: string): Preview {
   const entries = parseSessionEntries(text);
@@ -34,7 +64,7 @@ export function previewFromText(text: string, cwd: string): Preview {
   }
   validateEntries(entries);
   const memory = SessionManager.inMemory(cwd, undefined, entries);
-  return messagesToPreview(memory.buildSessionProjection().messages);
+  return previewFromManager(memory);
 }
 
 function validateEntries(entries: FileEntry[]): void {
@@ -95,7 +125,7 @@ export function createRepository(ctx: ExtensionContext): SessionRepository {
     async preview(session, signal) {
       signal.throwIfAborted();
       if (pathKey(session.path) === pathKey(ctx.sessionManager.getSessionFile() ?? "")) {
-        return messagesToPreview(ctx.sessionManager.buildSessionProjection().messages);
+        return previewFromManager(ctx.sessionManager);
       }
       return readPreview(session.path, session.cwd, signal);
     },
