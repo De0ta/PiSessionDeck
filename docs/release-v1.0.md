@@ -1,5 +1,11 @@
 # v1.0.0 发布验证记录
 
+## 最终结果
+
+[GitHub v1.0.0正式Release](https://github.com/De0ta/PiSessionViewer/releases/tag/v1.0.0)已公开发布，非草稿、非预发布。注释标签指向`a75c1ac30f1f0c7ba8d605481d1d9b25a1e77892`，该提交[四组CI](https://github.com/De0ta/PiSessionViewer/actions/runs/39999968949)全部通过。标签已通过匿名真实Pi安装与加载验证，发布包和SHA256文件均已匿名下载回验。本记录的后续文档提交不移动已发布标签。
+
+附件`pi-session-viewer-1.0.0.tgz`为33,602字节、16文件；SHA256：`2918449f93a86552bd6e7fc4903664be3183e29c941848446ce354f020066e6a`。未执行npm发布或修改用户全局Pi安装。
+
 ## 范围与分发
 
 用户已授权修复两处发布审查问题、选择MIT许可证、补Windows/Linux CI和安装文档、公开现有GitHub仓库并创建首个正式Release。仅GitHub分发；保留包元数据`private: true`防止误发npm。
@@ -20,8 +26,8 @@
 | Git安装smoke | 实际Pi CLI、临时agent/project目录、固定提交、settings持久化、资源解析及扩展加载通过；Git远程传输重定向本地提交 |
 | Windows/Ubuntu × Node22.19/24 CI | [四组全部通过](https://github.com/De0ta/PiSessionViewer/actions/runs/39999387318)，包括97测试及两种smoke |
 | 公开前历史审查 | 独立审查无发布阻塞；7提交/112唯一文件对象启发式核查未发现凭据、真实历史或截图。文档F3快捷键和lock许可证两处P3已修复 |
-| 匿名GitHub安装 | 仓库已核查PUBLIC，禁用全局/system Git配置与凭据helper，固定提交aeb46d1匿名实际Pi安装和加载通过；固定标签在创建后复核 |
-| Release附件 | 由下述流程打包、生成SHA256并上传，最终结果以GitHub Release为准 |
+| 匿名GitHub安装 | 仓库已核查PUBLIC，禁用全局/system Git配置与凭据helper，固定提交aeb46d1与固定标签v1.0.0均通过匿名实际Pi安装和加载 |
+| Release附件 | tgz和SHA256SUMS均已上传；匿名下载后的摘要与本地及GitHub服务器摘要一致 |
 
 CI以最小`contents: read`权限执行，不使用提供方密钥或真实会话；安装测试只在临时配置中运行。发布包smoke测试工作区，Git安装smoke测试已提交HEAD；提交前首次Git安装是0.6.0，提交87deb54后已重跑并确认1.0.0；四组CI再次验证提交aeb46d1的1.0.0。首次CI配置因job级env使用不可用runner上下文而无任务，已改为step初始化；之后矩阵全绿。仓库刚公开时一次匿名Git检查返回需要身份，随后HTTP与Smart Git均为200且匿名实际安装重试通过，不将初次失败隐去。
 

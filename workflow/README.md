@@ -6,7 +6,7 @@
 
 ## 当前阶段
 
-**v1.0.0公开分发已就绪：MIT，GitHub仓库PUBLIC，不发布npm；两处审查问题已修复，Windows/Ubuntu×Node22.19/24四组CI、97测试、发布包加载与匿名GitHub固定提交安装通过；独立审查无发布阻塞。标签/Release执行记录以GitHub为准，真实终端与实际恢复仍待人工验收。**
+**v1.0.0正式版已公开发布：MIT、GitHub PUBLIC、非预发布，不发布npm；两处审查问题已修复，Windows/Ubuntu×Node22.19/24四组CI、97测试、发布包加载与匿名固定标签安装通过，Release附件SHA256回验一致；独立审查无阻塞。真实终端与实际恢复仍待人工验收。**
 
 - 用户确认：轻量版已完成，并追加授权两处审查修复、MIT许可证、Windows/Linux CI和GitHub首个正式版公开发布；npm另行决定。
 - 仓库可见：`src/`、`test/`、包清单/锁文件、TypeScript 检查、使用文档及四份工作流。
@@ -22,12 +22,12 @@
 | Codex / Pi API / 开源方案调研 | 已完成 | 详见专题文档，保留平台边界 |
 | Windows 原生轻量路线 | 已选定 | 使用 Pi 1.4 公开 API 自研 |
 | 轻量浏览器 | 自动化验证通过 | 真实终端验收待完成 |
-| GitHub仓库与v1.0 | 已PUBLIC，MIT；CI与匿名安装通过，正式版标签/Release见GitHub | <https://github.com/De0ta/PiSessionViewer>；主分支 `main`，初始实现提交 `08ae51b` |
+| GitHub仓库与v1.0 | 已PUBLIC，MIT；v1.0.0正式Release、匿名标签安装与附件校验完成 | <https://github.com/De0ta/PiSessionViewer>；主分支 `main`，初始实现提交 `08ae51b` |
 | 后台多会话中心 | 未实现 | 与轻量历史恢复区分，不伪造运行状态 |
 
 ## 接下来
 
-0. 发布前CI/审查/历史检查与匿名固定提交安装已完成；按[发布记录](../docs/release-v1.0.md)核对v1.0.0标签、GitHub Release与附件。
+0. v1.0.0发布、匿名标签安装与附件校验已完成，见[发布记录](../docs/release-v1.0.md)。后续优先真实终端人工验收和问题反馈，不移动已发布标签。
 
 1. 按根目录 README 使用 `pi -e .` 临时加载，不自动修改全局配置。
 2. 按[人工验收表](../docs/fullscreen-v0.2.md#待人工验收)检查真实终端与可丢弃会话。
