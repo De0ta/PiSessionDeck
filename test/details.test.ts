@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { SessionManager } from "@earendil-works/pi-coding-agent";
-import { previewFromManager, previewFromText } from "../src/repository.ts";
+import { parseSessionEntries, SessionManager } from "@earendil-works/pi-coding-agent";
+import { firstExchangeFromManager, previewFromManager, previewFromText } from "../src/repository.ts";
 import { cwd, header, jsonl, user } from "./fixtures.ts";
 
 const assistant = (id: string, parentId: string, content: unknown) => ({
@@ -13,7 +13,7 @@ const edit = (id: string, parentId: string, targetId: string, content: string | 
   replacement: content === null ? null : { content },
 });
 
-test("详情提取原始首问与最后回复、模型和推理；不混入废弃分支", () => {
+test("详情提取回复对应提问、模型和推理；不混入废弃分支", () => {
   const preview = previewFromText(jsonl(header,
     { type: "thinking_level_change", id: "thinking", parentId: null, timestamp: header.timestamp, thinkingLevel: "high" },
     user("root", "thinking", "Original prompt"),
@@ -25,7 +25,7 @@ test("详情提取原始首问与最后回复、模型和推理；不混入废�
   assert.ok(!JSON.stringify(preview.details).includes("Wrong branch"));
 });
 
-test("首问不受8条预览限制；压缩不丢历史语义字段或暴露编辑前文本", () => {
+test("回复对应提问不受8条预览限制；压缩不丢语义字段或暴露编辑前文本", () => {
   const preview = previewFromText(jsonl(header,
     user("root", null, "Secret original"),
     assistant("reply", "root", [{ type: "text", text: "Historical reply" }]),

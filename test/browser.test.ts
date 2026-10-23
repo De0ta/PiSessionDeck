@@ -40,7 +40,7 @@ test("宽屏双栏、中英文宽度、窄屏详情、搜索、Enter恢复", asy
   browser.handleInput("\x1b"); // Esc exits search, not the page
   browser.handleInput("\x1b[B");
   await tick();
-  browser.handleInput("\x1b[C"); // narrow view: details
+  browser.handleInput("d"); // narrow view: details
   assert.ok(browser.render(60).join("\n").includes("预览 b"));
   browser.handleInput("\r");
   assert.deepEqual(completed, [b]);

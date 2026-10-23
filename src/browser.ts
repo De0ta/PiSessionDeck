@@ -119,6 +119,8 @@ export class SessionBrowser implements Component, Focusable {
     this.listAbort?.abort();
     const controller = new AbortController();
     this.listAbort = controller;
+    // Only protect changes made DURING this scan; fresh reads are authoritative.
+    this.renamedTitles.clear();
     this.loading = true;
     this.error = "";
     this.renderAgain();
@@ -141,7 +143,10 @@ export class SessionBrowser implements Component, Focusable {
   /** Only the in-process session has a trustworthy live status/projection. */
   refreshCurrent(title?: string): void {
     if (this.closed) return;
-    if (title !== undefined) this.sessions = this.sessions.map((session) => this.isCurrent(session) ? { ...session, name: title } : session);
+    if (title !== undefined) {
+      if (this.options.currentFile) this.renamedTitles.set(pathKey(this.options.currentFile), title);
+      this.sessions = this.sessions.map((session) => this.isCurrent(session) ? { ...session, name: title } : session);
+    }
     const selected = this.selected;
     if (selected && this.isCurrent(selected)) void this.loadPreview(selected, true);
     this.renderAgain();
@@ -201,7 +206,7 @@ export class SessionBrowser implements Component, Focusable {
       else if (!this.renameBusy) this.renameInput.handleInput(data);
       this.renderAgain(); return;
     }
-    if (matchesKey(data, "f2") && this.selected && this.options.repository.rename) {
+    if (!this.searchOpen && !this.helpOpen && matchesKey(data, "r") && this.selected && this.options.repository.rename) {
       this.renaming = this.selected;
       this.renameInput.setValue(sessionTitle(this.selected));
       this.renameInput.handleInput("\x1b[F"); // Input.setValue preserves its old cursor; edit from the end.
@@ -225,12 +230,12 @@ export class SessionBrowser implements Component, Focusable {
       this.renderAgain(); return;
     }
     if (!this.searchOpen && data === "?") { this.helpOpen = true; this.helpOffset = 0; this.focused = this._focused; this.renderAgain(); return; }
-    if (matchesKey(data, "enter")) { this.activateSelection(); return; }
+    if (matchesKey(data, "enter") || (!this.searchOpen && matchesKey(data, "right"))) { this.activateSelection(); return; }
     if (matchesKey(data, "tab") || matchesKey(data, "shift+tab") || matchesKey(data, "ctrl+o")) { this.changeScope(); return; }
     if (matchesKey(data, "ctrl+r")) { void this.refresh(); return; }
     if (!this.searchOpen && data === "g") { this.grouped = !this.grouped; this.chooseValidSelection(); this.renderAgain(); return; }
-    if (!this.searchOpen && (matchesKey(data, "right") || matchesKey(data, "left"))) {
-      this.narrowDetails = matchesKey(data, "right"); this.renderAgain(); return;
+    if (!this.searchOpen && (data === "d" || matchesKey(data, "left"))) {
+      this.narrowDetails = data === "d"; this.renderAgain(); return;
     }
     if (matchesKey(data, "shift+up") || matchesKey(data, "shift+down")) {
       this.previewOffset = Math.max(0, this.previewOffset + (matchesKey(data, "shift+up") ? -1 : 1));
@@ -260,7 +265,7 @@ export class SessionBrowser implements Component, Focusable {
 
   private details(columns: number, height: number): string[] {
     const selected = this.selected;
-    if (!selected) return [this.selectedPath?.startsWith("more:") ? "Enter to show the next 5 conversations." : this.preview.note ?? "No task selected."];
+    if (!selected) return [this.selectedPath?.startsWith("more:") ? painter(this.options.theme)("Enter", COLORS.white) + painter(this.options.theme)(" to show the next 5 conversations.", COLORS.dim) : this.preview.note ?? "No task selected."];
     const key = JSON.stringify([columns, height, this.previewOffset, selected.path, selected.name, this.status(selected)]);
     if (this.detailCache?.key === key && this.detailCache.preview === this.preview) return this.detailCache.lines;
     const result = detailLines({ session: selected, preview: this.preview, status: this.status(selected), current: this.isCurrent(selected), width: columns, height, offset: this.previewOffset, paint: painter(this.options.theme), markdownTheme: this.options.markdownTheme });
@@ -270,20 +275,26 @@ export class SessionBrowser implements Component, Focusable {
   }
   private helpLines(width: number): StyledLine[] {
     const groups = [
-      ["Navigate", "↑ / ↓       Move", "Enter       Open", "PgUp/PgDn   Page", "Esc         Back", "Ctrl+C      Close"],
-      ["Tasks", "Enter       Resume / Show more", "Shift+↑/↓   Scroll last reply", "← / →       List / details (narrow)", ...(this.options.repository.rename ? ["F2          Rename task"] : [])],
+      ["Navigate", "↑ / ↓       Move", "Enter / →   Open", "PgUp/PgDn   Page", "Esc         Back", "Ctrl+C      Close"],
+      ["Tasks", "Enter / →   Resume / Show more", "Shift+↑/↓   Scroll last reply", "d / ←       Details / list (narrow)", ...(this.options.repository.rename ? ["r           Rename task"] : [])],
       ["View", "Tab/S-Tab   Filter", "F3          Search", "g           Group", "Ctrl+R      Refresh", "?           Help"],
     ];
+    const paint = painter(this.options.theme);
+    const action = (text: string, index: number) => {
+      if (!index) return paint(text, COLORS.white, true);
+      const match = /^(.+?)( {2,})(.*)$/.exec(text);
+      return match ? paint(match[1]!, COLORS.white) + paint(match[2]! + match[3]!, COLORS.dim) : paint(text, COLORS.dim);
+    };
     if (width >= 100) {
       const col = Math.floor(width / 3);
       return Array.from({ length: 7 }, (_, i) => ({
         text: groups.map((group) => {
-          const text = truncateToWidth(group[i] ?? "", col, "");
+          const text = truncateToWidth(action(group[i] ?? "", i), col, "");
           return text + " ".repeat(Math.max(0, col - visibleWidth(text)));
         }).join(""), color: i === 0 ? COLORS.white : COLORS.text, bold: i === 0,
       }));
     }
-    return groups.flatMap((group) => [...group.map((text, i) => ({ text, color: i ? COLORS.text : COLORS.white, bold: i === 0 })), { text: "" }]);
+    return groups.flatMap((group) => [...group.map((text, i) => ({ text: action(text, i), color: i ? COLORS.text : COLORS.white, bold: i === 0 })), { text: "" }]);
   }
 
   render(width: number): string[] {
@@ -305,8 +316,8 @@ export class SessionBrowser implements Component, Focusable {
     const searchBar = cell(paint(label, COLORS.blue, true) + searchText, leftWidth, COLORS.text, COLORS.search);
     const lines = [
       cell(`Session manager    Group: ${this.grouped ? "Project" : "Recent"}  g`, width, COLORS.white, COLORS.bg, true),
-      cell(`${this.scope === "all" ? "[All]" : " All "}  ${this.scope === "project" ? "[This project]" : " This project "}    ${this.visibleSessions().length} tasks    Tab filter · F3 search`, width, COLORS.dim),
-      searchBar + (wide ? cell(" │ ", 3, COLORS.border) + cell("", rightWidth) : ""),
+      cell(`${this.scope === "all" ? "[All]" : " All "}  ${this.scope === "project" ? "[This project]" : " This project "}    ${this.visibleSessions().length} tasks    ${paint("Tab", COLORS.white)}${paint(" filter · ", COLORS.dim)}${paint("F3", COLORS.white)}${paint(" search", COLORS.dim)}`, width, COLORS.dim),
+      ...(this.renaming || this.searchOpen ? [searchBar + (wide ? cell(" │ ", 3, COLORS.border) + cell("", rightWidth) : "")] : []),
       cell("─".repeat(width), width, COLORS.border),
     ];
     const bodyHeight = Math.max(0, height - lines.length - 2);
@@ -329,7 +340,7 @@ export class SessionBrowser implements Component, Focusable {
       const title = paint(selected ? "› " : "  ", selected ? COLORS.ink : COLORS.dim) + paint("○ ", circle) + paint(sessionTitle(row.session), selected ? COLORS.ink : sessionColor(row.session.id), selected);
       const titleWidth = leftWidth < 42 ? leftWidth : leftWidth - 22;
       const titleCell = cell(title, titleWidth, COLORS.text, bg);
-      return leftWidth < 42 ? titleCell : titleCell + cell(` ${fit(status, 9)} ${fit(activityTime(row.session.modified), 11)}`, 22, COLORS.dim, bg);
+      return leftWidth < 42 ? titleCell : titleCell + cell(` ${fit(status, 9)} `, 11, COLORS.text, bg) + cell(fit(activityTime(row.session.modified), 11), 11, COLORS.dim, bg);
     });
     if (!list.length) list.push(cell(this.loading ? "Loading tasks..." : "No matching tasks.", leftWidth, COLORS.dim));
     const details = this.details(rightWidth, contentHeight);
@@ -344,12 +355,12 @@ export class SessionBrowser implements Component, Focusable {
       if (bodyHeight) lines.push(cell(table("Tasks", "Status", "Updated"), leftWidth, COLORS.dim) + separator + cell("Task details", rightWidth, COLORS.white, COLORS.bg, true));
       for (let i = 0; i < contentHeight; i++) lines.push((list[i] ?? cell("", leftWidth)) + separator + cell(details[i] ?? "", rightWidth));
     } else {
-      if (bodyHeight) lines.push(cell(this.narrowDetails ? "Task details    ← tasks" : "Tasks    → details", width, COLORS.white, COLORS.bg, true));
+      if (bodyHeight) lines.push(cell(this.narrowDetails ? "Task details    ← tasks" : "Tasks    d details", width, COLORS.white, COLORS.bg, true));
       for (let i = 0; i < contentHeight; i++) lines.push(this.narrowDetails ? cell(details[i] ?? "", width) : (list[i] ?? cell("", width)));
     }
-    const status = this.error || (this.loading ? "Loading tasks... Esc to cancel" : this.helpOpen ? "Only available actions are listed." : "Saved = history only; activity in other Pi processes is unknown.");
+    const status = this.error || (this.loading ? paint("Loading tasks... ", COLORS.dim) + paint("Esc", COLORS.white) + paint(" to cancel", COLORS.dim) : this.helpOpen ? "Only available actions are listed." : "Saved = history only; activity in other Pi processes is unknown.");
     lines.push(cell(status, width, this.error ? COLORS.error : COLORS.dim));
-    const hints = this.renaming ? [["Enter", "save"], ["Esc", "cancel"]] : this.helpOpen ? [["Esc", "back"], ["↑/↓", "scroll"]] : [["?", "help"], ["Esc", "back"], ["↑/↓", "move"], ["Enter", "open / more"], ["F3", "search"], ...(this.options.repository.rename ? [["F2", "rename"]] : []), ["Shift+↑/↓", "reply"]];
+    const hints = this.renaming ? [["Enter", "save"], ["Esc", "cancel"]] : this.helpOpen ? [["Esc", "back"], ["↑/↓", "scroll"]] : [["?", "help"], ["Esc", "back"], ["↑/↓", "move"], ["Enter/→", "open / more"], ["F3", "search"], ...(this.options.repository.rename ? [["r", "rename"]] : []), ["Shift+↑/↓", "reply"]];
     lines.push(cell(hints.map(([key, action]) => paint(key!, COLORS.white) + paint(` ${action}`, COLORS.dim)).join("   "), width, COLORS.dim));
     return lines.slice(0, height).map((line) => truncateToWidth(line, width, ""));
   }

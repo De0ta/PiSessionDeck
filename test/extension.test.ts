@@ -214,7 +214,40 @@ test("重复命令不重入；shutdown后延迟返回不会切换或覆盖其他
   assert.equal(h.switches.length, 0);
 }));
 
-test("首次成功交互自动起本地标题且仅一次，不发送额外模型消息；手动标题优先", async () => harness(async (h) => {
+test("settled后才启动后台模型命名，事件不等待模型，不向主对话发送消息", async () => harness(async (h) => {
+  const pending = deferred<{ stopReason: "stop"; content: { type: "text"; text: string }[] }>();
+  let requests = 0;
+  Object.defineProperties(h.ctx, {
+    model: { value: { id: "fake", provider: "fake" } },
+    modelRegistry: { value: { streamSimple: () => { requests++; return { result: () => pending.promise }; } } },
+  });
+  h.manager.appendMessage({ role: "user", content: "请修复浏览器", timestamp: 1 });
+  await h.emit("agent_before_settle", { outcome: "completed", continue: false });
+  assert.equal(requests, 0);
+  await h.emit("agent_settled", { aborted: false });
+  assert.equal(requests, 1);
+  assert.equal(h.manager.getSessionName(), "请修复浏览器", "settled returned while naming still pending");
+  pending.resolve({ stopReason: "stop", content: [{ type: "text", text: "会话浏览器修复" }] }); await tick();
+  assert.equal(h.manager.getSessionName(), "会话浏览器修复");
+  assert.deepEqual(h.sent, []);
+}));
+
+test("shutdown中止尚未完成的命名并丢弃迟到结果", async () => harness(async (h) => {
+  const pending = deferred<{ stopReason: "stop"; content: { type: "text"; text: string }[] }>();
+  let signal: AbortSignal | undefined;
+  Object.defineProperties(h.ctx, {
+    model: { value: { id: "fake", provider: "fake" } },
+    modelRegistry: { value: { streamSimple: (_model: unknown, _context: unknown, options: { signal: AbortSignal }) => { signal = options.signal; return { result: () => pending.promise }; } } },
+  });
+  h.manager.appendMessage({ role: "user", content: "Fallback", timestamp: 1 });
+  await h.emit("agent_before_settle", { outcome: "completed", continue: false });
+  await h.emit("agent_settled", { aborted: false });
+  await h.emit("session_shutdown"); assert.equal(signal?.aborted, true);
+  pending.resolve({ stopReason: "stop", content: [{ type: "text", text: "Late" }] }); await tick();
+  assert.equal(h.manager.getSessionName(), "Fallback");
+}));
+
+test("无模型时首次成功交互回退本地标题且仅一次，不发送主对话消息；手动标题优先", async () => harness(async (h) => {
   h.manager.appendMessage({ role: "user", content: "修复会话浏览器。这里是后续细节", timestamp: Date.now() });
   await h.emit("agent_before_settle", { outcome: "aborted", continue: false });
   await h.emit("agent_settled", { aborted: true });

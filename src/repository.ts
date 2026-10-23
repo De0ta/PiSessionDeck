@@ -34,8 +34,7 @@ function textContent(content: unknown): string {
   return content.filter((part) => part && part.type === "text" && typeof part.text === "string").map((part) => part.text).join("\n");
 }
 
-export function previewFromManager(manager: DetailManager): Preview {
-  const projection = manager.buildSessionProjection();
+function branchText(manager: DetailManager, limit = 6000) {
   const branch = manager.getBranch();
   const edits = new Map(branch.flatMap((entry) => entry.type === "context_edit" ? [[entry.targetId, entry.replacement] as const] : []));
   const messages = branch.filter((entry) => entry.type === "message");
@@ -45,13 +44,37 @@ export function previewFromManager(manager: DetailManager): Preview {
     if (edits.has(entry.id) && edit === null) return "[Omitted from context]";
     const text = safeText(textContent(edit ? edit.content : "content" in entry.message ? entry.message.content : undefined), true).trim();
     if (!text) return "[No text content]";
-    return text.slice(0, 6000) + (text.length > 6000 ? "\n[Truncated]" : "");
+    return text.slice(0, limit) + (text.length > limit ? "\n[Truncated]" : "");
   };
+  return { messages, resolve };
+}
+
+/** Title input is intentionally independent of the latest-reply detail viewport. */
+export function firstExchangeFromManager(manager: DetailManager): { prompt?: string; reply?: string } {
+  // Keep full text here: resource wrappers must be stripped BEFORE any limit.
+  const { messages, resolve } = branchText(manager, Infinity);
+  const firstUser = messages.findIndex((entry) => entry.message.role === "user");
+  if (firstUser < 0) return {};
+  const following = messages.slice(firstUser + 1);
+  const nextUser = following.findIndex((entry) => entry.message.role === "user");
+  const firstReply = following.slice(0, nextUser < 0 ? undefined : nextUser).findLast((entry) =>
+    entry.message.role === "assistant" && usableText(resolve(entry)));
+  return { prompt: resolve(messages[firstUser]), reply: resolve(firstReply) };
+}
+export function usableText(text: string | undefined): text is string {
+  return !!text && text !== "[Omitted from context]" && text !== "[No text content]";
+}
+
+export function previewFromManager(manager: DetailManager): Preview {
+  const projection = manager.buildSessionProjection();
+  const { messages, resolve } = branchText(manager);
+  const replyIndex = messages.findLastIndex((entry) => entry.message.role === "assistant");
+  const prompt = messages.slice(0, replyIndex < 0 ? undefined : replyIndex).findLast((entry) => entry.message.role === "user");
   const details: TaskDetails = {
     model: projection.model ? `${projection.model.provider}/${projection.model.modelId}` : undefined,
     reasoning: projection.thinkingLevel,
-    prompt: resolve(messages.find((entry) => entry.message.role === "user")),
-    lastMessage: resolve(messages.findLast((entry) => entry.message.role === "assistant")),
+    prompt: resolve(prompt),
+    lastMessage: resolve(replyIndex < 0 ? undefined : messages[replyIndex]),
   };
   return { messages: messagesToPreview(projection.messages).messages, details };
 }

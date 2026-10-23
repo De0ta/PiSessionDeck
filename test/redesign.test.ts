@@ -84,13 +84,13 @@ test("搜索由F3显式开启；g和?在搜索时是文本；Esc逐级返回", a
   assert.deepEqual(f.done, [undefined]);
 });
 
-test("Tab切过滤、g切分组、窄屏左右切详情；帮助可滚动", async () => {
+test("Tab切过滤、g切分组、窄屏d和左键切详情；帮助可滚动", async () => {
   const f = fixture(); await tick();
   f.browser.handleInput("g");
   assert.ok(plain(f.browser.render(140).join("\n")).includes("Group: Recent"));
   f.browser.handleInput("\t"); await tick();
   assert.deepEqual(f.scopes, ["all", "project"]);
-  f.browser.handleInput("\x1b[C");
+  f.browser.handleInput("d");
   assert.ok(plain(f.browser.render(60).join("\n")).includes("Prompt a"));
   f.browser.handleInput("\x1b[D");
   assert.ok(!plain(f.browser.render(60).join("\n")).includes("Prompt a"));

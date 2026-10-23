@@ -1,8 +1,9 @@
 import { getMarkdownTheme, type ExtensionAPI, type ExtensionContext, type SessionInfo } from "@earendil-works/pi-coding-agent";
 import { SessionBrowser } from "./browser.ts";
 import { BrowserEditor } from "./editor.ts";
-import { pathKey, safeText, summarizeTitle } from "./model.ts";
-import { createRepository, previewFromManager } from "./repository.ts";
+import { pathKey, safeText } from "./model.ts";
+import { createRepository } from "./repository.ts";
+import { createAutoTitler } from "./auto-title.ts";
 import { createTitleStore } from "./titles.ts";
 import { createFocusGuard } from "./overlay.ts";
 
@@ -15,6 +16,7 @@ export default function sessionViewer(pi: ExtensionAPI): void {
   let shuttingDown = false;
   let editorFactory: EditorFactory | undefined;
   const titles = createTitleStore();
+  const autoTitler = createAutoTitler(pi, (title) => browser?.refreshCurrent(title));
   const terminalStates = new Map<string, "Completed" | "Stopped" | "Error">();
   let outcome = "completed";
 
@@ -80,14 +82,7 @@ export default function sessionViewer(pi: ExtensionAPI): void {
     terminalStates.set(ctx.sessionManager.getSessionId(), event.aborted ? "Stopped" : outcome === "error" ? "Error" : "Completed");
     // Settlement runs after ALL boundary hooks and their edits have committed.
     // Naming in before_settle would leak text redacted by a later extension.
-    if (ctx.mode === "tui" && !event.aborted && outcome === "completed" && !pi.getSessionName() &&
-      !ctx.sessionManager.getEntries().some((entry) => entry.type === "custom" && entry.customType === "pi-session-viewer:auto-title")) {
-      const prompt = previewFromManager(ctx.sessionManager).details?.prompt;
-      if (prompt && prompt !== "[Omitted from context]" && prompt !== "[No text content]") {
-        pi.setSessionName(summarizeTitle(prompt));
-        pi.appendEntry("pi-session-viewer:auto-title", { method: "local", version: 1 });
-      }
-    }
+    if (ctx.mode === "tui" && !event.aborted && outcome === "completed") autoTitler.start(ctx);
     browser?.refreshCurrent(pi.getSessionName());
   });
   // message_end extensions run BEFORE persistence. These events run after the
@@ -128,6 +123,7 @@ export default function sessionViewer(pi: ExtensionAPI): void {
 
   pi.on("session_shutdown", (_event, ctx) => {
     shuttingDown = true;
+    autoTitler.cancel();
     browser?.close();
     browser = undefined;
     if (ctx.hasUI && editorFactory && ctx.ui.getEditorComponent() === editorFactory) ctx.ui.setEditorComponent(undefined);

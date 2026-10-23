@@ -57,23 +57,23 @@ test("Show more可键盘选中但不恢复会话，展开后选中首条新展�
   f.browser.close();
 });
 
-test("F2标题编辑可保存、取消，失败不丢原始标题", async () => {
+test("r标题编辑可保存、取消，失败不丢原始标题", async () => {
   const renamed: string[] = [];
   const f = fixture([session("a", { name: "Original" })], async (_s, name) => { renamed.push(name); });
   await tick();
-  f.browser.handleInput("\x1bOQ"); // F2
+  f.browser.handleInput("r"); // Rename
   f.browser.handleInput("\x15"); // Ctrl+U
   f.browser.handleInput("New title");
   f.browser.handleInput("\r"); await tick();
   assert.deepEqual(renamed, ["New title"]);
   assert.equal(f.browser.selected?.name, "New title");
-  f.browser.handleInput("\x1bOQ");
+  f.browser.handleInput("r");
   f.browser.handleInput("\x15"); f.browser.handleInput("Cancelled"); f.browser.handleInput("\x1b");
   assert.equal(f.browser.selected?.name, "New title");
   assert.equal(f.done.length, 0);
   f.browser.close();
   const fail = fixture([session("b", { name: "Keep me" })], async () => { throw new Error("disk full"); });
-  await tick(); fail.browser.handleInput("\x1bOQ"); fail.browser.handleInput("x"); fail.browser.handleInput("\r"); await tick();
+  await tick(); fail.browser.handleInput("r"); fail.browser.handleInput("x"); fail.browser.handleInput("\r"); await tick();
   assert.match(fail.screen(), /Could not rename/);
   assert.equal(fail.browser.selected?.name, "Keep me"); fail.browser.close();
 });
@@ -85,7 +85,7 @@ test("旧扫描延迟返回不能覆盖成功的手动标题", async () => {
   const f = fixture([original], async () => {}, async () => ++calls === 1 ? [original] : pending.promise);
   await tick();
   const refresh = f.browser.refresh();
-  f.browser.handleInput("\x1bOQ"); f.browser.handleInput("\x15");
+  f.browser.handleInput("r"); f.browser.handleInput("\x15");
   f.browser.handleInput("New name"); f.browser.handleInput("\r"); await tick();
   assert.equal(f.browser.selected?.name, "New name");
   pending.resolve([{ ...original }]); await refresh; await tick();
@@ -102,14 +102,38 @@ test("浏览器打开时首次交互完成的名称同步到当前详情和列�
   f.browser.close();
 });
 
+test("后台模型标题不被更早启动的扫描结果覆盖", async () => {
+  const current = session("current", { name: "Fallback" });
+  const pending = deferred<SessionInfo[]>(); let calls = 0;
+  const f = fixture([current], undefined, async () => ++calls === 1 ? [current] : pending.promise);
+  f.browser.options.currentFile = current.path; await tick();
+  const scanning = f.browser.refresh(); f.browser.refreshCurrent("Model title");
+  pending.resolve([{ ...current }]); await scanning; await tick();
+  assert.equal(f.browser.selected?.name, "Model title"); f.browser.close();
+});
+
+test("新扫描读取原生改名或清空，不能永久套用旧的自动标题缓存", async () => {
+  const current = session("current", { name: "Fallback" });
+  let fresh = [current];
+  const f = fixture(fresh, undefined, async () => fresh);
+  f.browser.options.currentFile = current.path; await tick();
+  f.browser.refreshCurrent("Model title");
+  fresh = [{ ...current, name: "Native manual name" }]; await f.browser.refresh();
+  assert.equal(f.browser.selected?.name, "Native manual name");
+  f.browser.refreshCurrent("Another cached name");
+  fresh = [{ ...current, name: undefined }]; await f.browser.refresh();
+  assert.equal(f.browser.selected?.name, undefined); f.browser.close();
+});
+
 test("详情Markdown、固定Prompt、三行彩色标题、灰色省略与元数据分色", () => {
   const s = session("details", { name: "标题".repeat(120) });
   const preview = { messages: [], details: { model: "provider/model", reasoning: "high", lastMessage: Array.from({ length: 100 }, (_, i) => `**Reply ${i}**\n\n`).join(""), prompt: "Prompt first\nPrompt second\n".repeat(50) } };
   const result = detailLines({ session: s, preview, status: "Saved", current: false, width: 36, height: 24, offset: 0, paint });
   const plain = result.lines.map(stripVTControlCharacters);
   assert.ok(result.lines.length <= 24);
-  assert.equal(plain.slice(0, 3).length, 3);
-  assert.ok(result.lines[2]!.includes(paint("...", COLORS.dim)));
+  assert.equal(plain[0], "", "blank line after Task details");
+  assert.equal(plain.slice(1, 4).length, 3);
+  assert.ok(result.lines[3]!.includes(paint("...", COLORS.dim)));
   assert.ok(plain.some((s) => s === "Last message"));
   const promptIndex = plain.indexOf("Prompt");
   assert.ok(promptIndex >= 0 && promptIndex + 2 < plain.length, "two prompt rows are reserved");
@@ -143,8 +167,15 @@ test("22行高窗口单行回复视口逐行滚动不跳过内容且Prompt固定
 
 test("搜索条独立灰底蓝字，底栏按键白色说明灰色，Markdown表格非原始竖线", async () => {
   const f = fixture([session("a")]); await tick();
+  assert.doesNotMatch(f.screen(), /Search ›/);
+  f.browser.handleInput("\x1bOR"); // F3
   const lines = f.browser.render(160);
   assert.ok(lines[2]!.includes(paint("Search › ", COLORS.blue, true)));
+  f.browser.handleInput("r");
+  assert.match(f.screen(), /Search › r/);
+  assert.doesNotMatch(f.screen(), /Rename ›/);
+  f.browser.handleInput("\x1b");
+  assert.doesNotMatch(f.screen(), /Search ›/);
   const footer = lines.at(-1)!;
   assert.ok(footer.includes(paint("F3", COLORS.white)));
   assert.ok(footer.includes(paint(" search", COLORS.dim)));
