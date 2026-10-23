@@ -22,7 +22,7 @@
 | Codex / Pi API / 开源方案调研 | 已完成 | 详见专题文档，保留平台边界 |
 | Windows 原生轻量路线 | 已选定 | 使用 Pi 1.4 公开 API 自研 |
 | 轻量浏览器 | 自动化验证通过 | 真实终端验收待完成 |
-| 私有 GitHub 仓库 | 已创建 | <https://github.com/De0ta/PiSessionViewer>；代码推送在交付时核实 |
+| 私有 GitHub 仓库 | 已推送并核实为 PRIVATE | <https://github.com/De0ta/PiSessionViewer>；主分支 `main`，初始实现提交 `08ae51b` |
 | 后台多会话中心 | 未实现 | 与轻量历史恢复区分，不伪造运行状态 |
 
 ## 接下来
