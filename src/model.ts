@@ -3,6 +3,15 @@ import { stripVTControlCharacters } from "node:util";
 import type { SessionInfo } from "@earendil-works/pi-coding-agent";
 
 export type Scope = "project" | "all";
+export const GROUP_MODES = ["project", "recent", "model", "status"] as const;
+export type GroupMode = (typeof GROUP_MODES)[number];
+export interface SessionModel { provider: string; modelId: string }
+export interface GroupingOptions {
+  mode?: GroupMode;
+  now?: number;
+  modelFor?(session: SessionInfo): SessionModel | undefined;
+  statusFor?(session: SessionInfo): string;
+}
 export interface PreviewMessage { role: "user" | "assistant"; text: string }
 export interface TaskDetails {
   model?: string;
@@ -47,26 +56,53 @@ export function filterSessions(sessions: readonly SessionInfo[], query: string, 
   }).sort((a, b) => b.modified.getTime() - a.modified.getTime() || a.path.localeCompare(b.path));
 }
 
-export type ListRow = { kind: "project"; cwd: string; count: number } | { kind: "session"; session: SessionInfo } | { kind: "spacer" } | { kind: "more"; cwd: string; remaining: number };
+export type ListRow = { kind: "project"; cwd: string; count: number } | { kind: "group"; key: string; label: string; count: number }
+  | { kind: "session"; session: SessionInfo } | { kind: "spacer" } | { kind: "more"; key: string; remaining: number };
 export function rowKey(row: ListRow): string | undefined {
-  return row.kind === "session" ? row.session.path : row.kind === "more" ? `more:${pathKey(row.cwd)}` : undefined;
+  return row.kind === "session" ? row.session.path : row.kind === "more" ? `more:${row.key}` : undefined;
 }
-/** Passing limits enables project spacing and five-at-a-time disclosure. */
-export function groupRows(sessions: readonly SessionInfo[], limits?: ReadonlyMap<string, number>): ListRow[] {
-  const groups = new Map<string, { cwd: string; sessions: SessionInfo[] }>();
+const HOUR = 3_600_000;
+const RECENT = [
+  { end: 5 * HOUR, label: "Within 5 hours" }, { end: 24 * HOUR, label: "5 hours – 1 day" },
+  { end: 7 * 24 * HOUR, label: "1 day – 1 week" }, { end: 30 * 24 * HOUR, label: "1 week – 1 month" },
+  { end: 90 * 24 * HOUR, label: "1 month – 3 months" }, { end: Infinity, label: "Over 3 months" },
+] as const;
+export function sessionGroup(session: SessionInfo, options: GroupingOptions = {}): { key: string; label: string; order: number } {
+  switch (options.mode) {
+    case "recent": {
+      const age = Math.max(0, (options.now ?? Date.now()) - session.modified.getTime());
+      const index = RECENT.findIndex((bucket) => age < bucket.end);
+      return { key: `recent:${index}`, label: RECENT[index]?.label ?? "Unknown time", order: index < 0 ? RECENT.length : index };
+    }
+    case "model": {
+      const model = options.modelFor?.(session);
+      return { key: `model:${model ? JSON.stringify([model.provider, model.modelId]) : "unknown"}`, label: model ? safeText(`${model.provider}/${model.modelId}`) : "Unknown model", order: 0 };
+    }
+    case "status": {
+      const status = options.statusFor?.(session) ?? "Saved";
+      return { key: `status:${status}`, label: safeText(status), order: 0 };
+    }
+    default: return { key: pathKey(session.cwd), label: session.cwd, order: 0 };
+  }
+}
+/** Each nonempty group has spacing and five-at-a-time disclosure when limits are supplied. */
+export function groupRows(sessions: readonly SessionInfo[], limits?: ReadonlyMap<string, number>, options: GroupingOptions = {}): ListRow[] {
+  const groups = new Map<string, { key: string; label: string; order: number; sessions: SessionInfo[] }>();
+  const fixed = { ...options, now: options.now ?? Date.now() };
   for (const session of sessions) {
-    const key = pathKey(session.cwd);
-    let group = groups.get(key);
-    if (!group) { group = { cwd: session.cwd, sessions: [] }; groups.set(key, group); }
+    const info = sessionGroup(session, fixed);
+    let group = groups.get(info.key);
+    if (!group) { group = { ...info, sessions: [] }; groups.set(info.key, group); }
     group.sessions.push(session);
   }
-  return [...groups.values()].flatMap((group, index): ListRow[] => {
-    const limit = limits ? (limits.get(pathKey(group.cwd)) ?? 5) : group.sessions.length;
+  return [...groups.values()].sort((a, b) => a.order - b.order).flatMap((group, index): ListRow[] => {
+    const limit = limits ? (limits.get(group.key) ?? 5) : group.sessions.length;
     return [
       ...(limits && index > 0 ? [{ kind: "spacer" } as const] : []),
-      { kind: "project", cwd: group.cwd, count: group.sessions.length },
+      options.mode && options.mode !== "project" ? { kind: "group", key: group.key, label: group.label, count: group.sessions.length }
+        : { kind: "project", cwd: group.label, count: group.sessions.length },
       ...group.sessions.slice(0, limit).map((session): ListRow => ({ kind: "session", session })),
-      ...(group.sessions.length > limit ? [{ kind: "more", cwd: group.cwd, remaining: group.sessions.length - limit } as const] : []),
+      ...(group.sessions.length > limit ? [{ kind: "more", key: group.key, remaining: group.sessions.length - limit } as const] : []),
     ];
   });
 }

@@ -6,7 +6,7 @@
 - 本机此前核查：Codex CLI `0.164.0`，`@earendil-works/pi-coding-agent` `1.4.0`。
 - 本轮终端核查：Windows/Git Bash，Node `v24.13.0`，`process.platform === "win32"`。这不是 WSL 运行时。
 - Pi 原生 `/resume` 已具备历史搜索、恢复、重命名、删除和范围切换；本项目轻量界面增强浏览与预览，不替代其全部功能。
-- 项目包名 `pi-session-viewer`、命令 `/session-browser`、版本 `0.4.0`；私有仓库 <https://github.com/De0ta/PiSessionViewer>。未发布 npm 包。
+- 项目包名 `pi-session-viewer`、命令 `/session-browser`、版本 `0.5.0`；私有仓库 <https://github.com/De0ta/PiSessionViewer>。未发布 npm 包。
 - Pi 扩展可提供自定义 TUI、编辑器和终端输入监听。空输入左键入口技术上可实现，不必向模型发送 prompt。
 
 ## 已找到的外部方案
@@ -37,6 +37,7 @@
 - 默认全部历史；`Tab`过滤、`F3`搜索（输入栏默认隐藏）、`g`分组、`?`帮助、`r`命名、`Enter`/`→`打开；窄屏`d`/`←`切详情/列表。
 - 详情只读文件 + 内存解析；模型/推理由投影获取，最后回复/对应提问从完整当前分支解析并应用该分支的 context_edit，不被压缩裁掉；不使用 SessionManager.open()。
 - 当前进程状态来自 `isIdle()` / `hasPendingMessages()` 与已观察的完成/取消/错误事件；其他历史只标记 `Saved`，不检测跨进程活动或推测安全接管。
-- 每项目默认5条、Show more每次5条；详情使用原生Markdown和分区裁剪保留Prompt。自动名称先本地提炼，再通过`ctx.modelRegistry.streamSimple()`后台请求当前模型拟写；15秒超时/失败保留回退，已有标题和命名标记不重算；`r`当前名称走公开API，历史别名写agent目录自有文件，恢复后转原生。
-- 当前模型命名、按键和分色见[v0.4设计](../docs/model-titles-v0.4.md)；[v0.3设计](../docs/refinements-v0.3.md)保留历史决策。
+- `g`循环Project/Recent/Model/Status；Recent按modified分为<5小时、<1天、<7天、<30天、<90天及>=90天六档（下限为前一档上限）。模型分组采用当前分支有效provider/modelId，历史元数据只读解析，4并发、16MiB上限、stat修订缓存，异常为Unknown model；当前模型实时投影优先。状态聚合沿用当前真实状态/历史Saved。
+- 各组默认5条、Show more每次5条；详情使用原生Markdown和分区裁剪保留Prompt。自动名称先本地提炼，再通过`ctx.modelRegistry.streamSimple()`后台请求当前模型拟写；15秒超时/失败保留回退，已有标题和命名标记不重算；`r`当前名称走公开API，历史别名写agent目录自有文件，恢复后转原生。
+- 四种分组、模型元数据及时间边界见[v0.5设计](../docs/groups-v0.5.md)；当前模型命名、按键和分色见[v0.4设计](../docs/model-titles-v0.4.md)；[v0.3设计](../docs/refinements-v0.3.md)保留历史决策。
 - 技术细节与验证边界见[全屏改版设计与验证](../docs/fullscreen-v0.2.md)。真实终端和跨项目端到端验收仍待完成。

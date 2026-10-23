@@ -1,6 +1,6 @@
 import type { KeybindingsManager, SessionInfo, Theme } from "@earendil-works/pi-coding-agent";
 import { Input, matchesKey, parseColor, truncateToWidth, visibleWidth, type Component, type Focusable, type MarkdownTheme } from "@earendil-works/pi-tui";
-import { activityTime, filterSessions, groupRows, pathKey, rowKey, safeText, sessionColor, sessionTitle, type ListRow, type Preview, type Scope } from "./model.ts";
+import { activityTime, filterSessions, GROUP_MODES, groupRows, pathKey, rowKey, safeText, sessionColor, sessionGroup, sessionTitle, type GroupingOptions, type GroupMode, type ListRow, type Preview, type Scope, type SessionModel } from "./model.ts";
 import type { SessionRepository } from "./repository.ts";
 
 import { COLORS, detailLines, painter, type Ink } from "./details.ts";
@@ -9,6 +9,8 @@ export interface BrowserOptions {
   cwd: string;
   currentFile?: string;
   currentStatus?(): "Ready" | "Working" | "Queued" | "Completed" | "Stopped" | "Error";
+  currentModel?(): SessionModel | undefined;
+  now?(): number;
   markdownTheme?: MarkdownTheme;
   repository: SessionRepository;
   theme: Pick<Theme, "style">;
@@ -29,9 +31,13 @@ export class SessionBrowser implements Component, Focusable {
   private searchOpen = false;
   private helpOpen = false;
   private helpOffset = 0;
-  private grouped = true;
+  private groupMode: GroupMode = "project";
+  private selectedGroup: { mode: GroupMode; path: string; key: string } | undefined;
+  private modelNames: ReadonlyMap<string, SessionModel> = new Map();
+  private modelAbort: AbortController | undefined;
+  private modelsLoading = false;
   private sessions: SessionInfo[] = [];
-  private visibleCache: { sessions: SessionInfo[]; query: string; scope: Scope; grouped: boolean; result: SessionInfo[] } | undefined;
+  private visibleCache: { sessions: SessionInfo[]; query: string; scope: Scope; result: SessionInfo[] } | undefined;
   private selectedPath: string | undefined;
   private scope: Scope = "all";
   private loading = false;
@@ -61,25 +67,64 @@ export class SessionBrowser implements Component, Focusable {
   private visibleSessions(): SessionInfo[] {
     const query = this.searchOpen ? this.search.getValue() : "";
     const cache = this.visibleCache;
-    if (cache?.sessions === this.sessions && cache.query === query && cache.scope === this.scope && cache.grouped === this.grouped) return cache.result;
+    if (cache?.sessions === this.sessions && cache.query === query && cache.scope === this.scope) return cache.result;
     const filtered = filterSessions(this.sessions, query, this.scope, this.options.cwd);
-    const result = this.grouped ? groupRows(filtered).flatMap((row) => row.kind === "session" ? [row.session] : []) : filtered;
-    this.visibleCache = { sessions: this.sessions, query, scope: this.scope, grouped: this.grouped, result };
+    const result = filtered;
+    this.visibleCache = { sessions: this.sessions, query, scope: this.scope, result };
     return result;
   }
+  private grouping(): GroupingOptions {
+    return { mode: this.groupMode, now: this.options.now?.() ?? Date.now(),
+      modelFor: (session) => this.isCurrent(session) && this.options.currentModel ? this.options.currentModel() : this.modelNames.get(pathKey(session.path)),
+      statusFor: (session) => this.status(session) };
+  }
   private rows(): ListRow[] {
-    return this.grouped ? groupRows(this.visibleSessions(), this.expanded) : this.visibleSessions().map((session) => ({ kind: "session", session }));
+    const options = this.grouping();
+    const sessions = this.visibleSessions();
+    const selected = this.selected;
+    if (selected) {
+      const { key } = sessionGroup(selected, options);
+      const previous = this.selectedGroup;
+      // Time passing or live metadata can move an already-visible selection to a
+      // collapsed bucket. Keep that same conversation visible in its new bucket.
+      if (previous?.mode === this.groupMode && previous.path === selected.path && previous.key !== key) {
+        const members = sessions.filter((session) => sessionGroup(session, options).key === key);
+        const index = members.findIndex((session) => session.path === selected.path);
+        if (index >= (this.expanded.get(key) ?? 5)) this.expanded.set(key, Math.ceil((index + 1) / 5) * 5);
+      }
+      this.selectedGroup = { mode: this.groupMode, path: selected.path, key };
+    } else this.selectedGroup = undefined;
+    return groupRows(sessions, this.expanded, options);
+  }
+  private async loadModels(): Promise<void> {
+    this.modelAbort?.abort();
+    const controller = new AbortController();
+    this.modelAbort = controller;
+    if (!this.options.repository.models || this.groupMode !== "model" || this.closed) { this.modelsLoading = false; return; }
+    this.modelsLoading = true; this.renderAgain();
+    try {
+      const models = await this.options.repository.models(this.sessions, controller.signal);
+      if (controller.signal.aborted || this.closed) return;
+      this.modelNames = models;
+      this.chooseValidSelection();
+    } catch (error) {
+      if (controller.signal.aborted || this.closed) return;
+      this.error = `Could not load model groups: ${safeText(String(error))}`;
+    } finally {
+      if (!controller.signal.aborted && !this.closed) { this.modelsLoading = false; this.renderAgain(); }
+    }
   }
   private choices(): ListRow[] { return this.rows().filter((row) => rowKey(row) !== undefined); }
   private activateSelection(): void {
     if (this.loading) return;
     const row = this.choices().find((row) => rowKey(row) === this.selectedPath);
     if (row?.kind === "more") {
-      const key = pathKey(row.cwd);
+      const key = row.key;
       const old = this.expanded.get(key) ?? 5;
       this.expanded.set(key, old + 5);
-      const project = this.visibleSessions().filter((s) => pathKey(s.cwd) === key);
-      const next = project[old];
+      const options = this.grouping();
+      const members = this.visibleSessions().filter((s) => sessionGroup(s, options).key === key);
+      const next = members[old];
       this.selectedPath = next?.path;
       void this.loadPreview(next);
       this.renderAgain();
@@ -117,6 +162,7 @@ export class SessionBrowser implements Component, Focusable {
   async refresh(): Promise<void> {
     if (this.closed) return;
     this.listAbort?.abort();
+    this.modelAbort?.abort(); this.modelsLoading = false;
     const controller = new AbortController();
     this.listAbort = controller;
     // Only protect changes made DURING this scan; fresh reads are authoritative.
@@ -133,6 +179,7 @@ export class SessionBrowser implements Component, Focusable {
       });
       this.loading = false;
       this.chooseValidSelection(true);
+      void this.loadModels();
     } catch (error) {
       if (controller.signal.aborted || this.closed) return;
       this.loading = false;
@@ -147,6 +194,7 @@ export class SessionBrowser implements Component, Focusable {
       if (this.options.currentFile) this.renamedTitles.set(pathKey(this.options.currentFile), title);
       this.sessions = this.sessions.map((session) => this.isCurrent(session) ? { ...session, name: title } : session);
     }
+    if (this.groupMode === "model" || this.groupMode === "status") this.chooseValidSelection();
     const selected = this.selected;
     if (selected && this.isCurrent(selected)) void this.loadPreview(selected, true);
     this.renderAgain();
@@ -186,6 +234,7 @@ export class SessionBrowser implements Component, Focusable {
     if (this.closed) return;
     this.closed = true;
     this.listAbort?.abort();
+    this.modelAbort?.abort();
     this.previewAbort?.abort();
     this.options.done(selection);
   }
@@ -233,7 +282,11 @@ export class SessionBrowser implements Component, Focusable {
     if (matchesKey(data, "enter") || (!this.searchOpen && matchesKey(data, "right"))) { this.activateSelection(); return; }
     if (matchesKey(data, "tab") || matchesKey(data, "shift+tab") || matchesKey(data, "ctrl+o")) { this.changeScope(); return; }
     if (matchesKey(data, "ctrl+r")) { void this.refresh(); return; }
-    if (!this.searchOpen && data === "g") { this.grouped = !this.grouped; this.chooseValidSelection(); this.renderAgain(); return; }
+    if (!this.searchOpen && data === "g") {
+      this.groupMode = GROUP_MODES[(GROUP_MODES.indexOf(this.groupMode) + 1) % GROUP_MODES.length]!;
+      this.expanded.clear(); this.chooseValidSelection();
+      void this.loadModels(); this.renderAgain(); return;
+    }
     if (!this.searchOpen && (data === "d" || matchesKey(data, "left"))) {
       this.narrowDetails = data === "d"; this.renderAgain(); return;
     }
@@ -277,7 +330,7 @@ export class SessionBrowser implements Component, Focusable {
     const groups = [
       ["Navigate", "↑ / ↓       Move", "Enter / →   Open", "PgUp/PgDn   Page", "Esc         Back", "Ctrl+C      Close"],
       ["Tasks", "Enter / →   Resume / Show more", "Shift+↑/↓   Scroll last reply", "d / ←       Details / list (narrow)", ...(this.options.repository.rename ? ["r           Rename task"] : [])],
-      ["View", "Tab/S-Tab   Filter", "F3          Search", "g           Group", "Ctrl+R      Refresh", "?           Help"],
+      ["View", "Tab/S-Tab   Filter", "F3          Search", "g           Project/Recent/Model/Status", "Ctrl+R      Refresh", "?           Help"],
     ];
     const paint = painter(this.options.theme);
     const action = (text: string, index: number) => {
@@ -315,7 +368,7 @@ export class SessionBrowser implements Component, Focusable {
     const searchText = this.renaming || this.searchOpen ? activeInput.render(Math.max(1, leftWidth - 9)).join("") : "";
     const searchBar = cell(paint(label, COLORS.blue, true) + searchText, leftWidth, COLORS.text, COLORS.search);
     const lines = [
-      cell(`Session manager    Group: ${this.grouped ? "Project" : "Recent"}  g`, width, COLORS.white, COLORS.bg, true),
+      cell(`Session manager    Group: ${{ project: "Project", recent: "Recent", model: "Model", status: "Status" }[this.groupMode]}  g`, width, COLORS.white, COLORS.bg, true),
       cell(`${this.scope === "all" ? "[All]" : " All "}  ${this.scope === "project" ? "[This project]" : " This project "}    ${this.visibleSessions().length} tasks    ${paint("Tab", COLORS.white)}${paint(" filter · ", COLORS.dim)}${paint("F3", COLORS.white)}${paint(" search", COLORS.dim)}`, width, COLORS.dim),
       ...(this.renaming || this.searchOpen ? [searchBar + (wide ? cell(" │ ", 3, COLORS.border) + cell("", rightWidth) : "")] : []),
       cell("─".repeat(width), width, COLORS.border),
@@ -332,6 +385,7 @@ export class SessionBrowser implements Component, Focusable {
     const list = rows.slice(start, start + contentHeight).map((row) => {
       if (row.kind === "spacer") return cell("", leftWidth);
       if (row.kind === "project") return cell(`${safeText(row.cwd) || "Unknown project"}  ${row.count}`, leftWidth, COLORS.dim);
+      if (row.kind === "group") return cell(`${safeText(row.label)}  ${row.count}`, leftWidth, COLORS.dim);
       const selected = rowKey(row) === this.selectedPath;
       const bg = selected ? COLORS.selected : COLORS.bg;
       if (row.kind === "more") return cell(`${selected ? "›" : " "}   Show more (${row.remaining} remaining)`, leftWidth, selected ? COLORS.ink : COLORS.dim, bg);
@@ -358,7 +412,7 @@ export class SessionBrowser implements Component, Focusable {
       if (bodyHeight) lines.push(cell(this.narrowDetails ? "Task details    ← tasks" : "Tasks    d details", width, COLORS.white, COLORS.bg, true));
       for (let i = 0; i < contentHeight; i++) lines.push(this.narrowDetails ? cell(details[i] ?? "", width) : (list[i] ?? cell("", width)));
     }
-    const status = this.error || (this.loading ? paint("Loading tasks... ", COLORS.dim) + paint("Esc", COLORS.white) + paint(" to cancel", COLORS.dim) : this.helpOpen ? "Only available actions are listed." : "Saved = history only; activity in other Pi processes is unknown.");
+    const status = this.error || (this.loading || this.modelsLoading ? paint(this.loading ? "Loading tasks... " : "Loading model groups... ", COLORS.dim) + paint("Esc", COLORS.white) + paint(" to cancel", COLORS.dim) : this.helpOpen ? "Only available actions are listed." : "Saved = history only; activity in other Pi processes is unknown.");
     lines.push(cell(status, width, this.error ? COLORS.error : COLORS.dim));
     const hints = this.renaming ? [["Enter", "save"], ["Esc", "cancel"]] : this.helpOpen ? [["Esc", "back"], ["↑/↓", "scroll"]] : [["?", "help"], ["Esc", "back"], ["↑/↓", "move"], ["Enter/→", "open / more"], ["F3", "search"], ...(this.options.repository.rename ? [["r", "rename"]] : []), ["Shift+↑/↓", "reply"]];
     lines.push(cell(hints.map(([key, action]) => paint(key!, COLORS.white) + paint(` ${action}`, COLORS.dim)).join("   "), width, COLORS.dim));

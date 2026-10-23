@@ -32,7 +32,7 @@ test("每项目默认5条、项目间空行、Show more逐次5条直到消失", 
   let rows = groupRows(sessions, limits);
   assert.equal(rows.filter((r) => r.kind === "session").length, 6);
   assert.equal(rows.filter((r) => r.kind === "spacer").length, 1);
-  assert.deepEqual(rows.find((r) => r.kind === "more"), { kind: "more", cwd, remaining: 7 });
+  assert.deepEqual(rows.find((r) => r.kind === "more"), { kind: "more", key: pathKey(cwd), remaining: 7 });
   limits.set(pathKey(cwd), 10);
   rows = groupRows(sessions, limits);
   assert.equal(rows.filter((r) => r.kind === "session").length, 11);

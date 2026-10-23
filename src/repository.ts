@@ -1,14 +1,15 @@
-import { open } from "node:fs/promises";
+import { open, stat } from "node:fs/promises";
 import {
   parseSessionEntries, SessionManager,
   type ExtensionContext, type FileEntry, type SessionInfo, type SessionProjection,
 } from "@earendil-works/pi-coding-agent";
-import { mergeSessions, pathKey, safeText, type Preview, type Scope, type TaskDetails } from "./model.ts";
+import { mergeSessions, pathKey, safeText, type Preview, type Scope, type SessionModel, type TaskDetails } from "./model.ts";
 import { createTitleStore, type TitleStore } from "./titles.ts";
 
 export interface SessionRepository {
   list(scope: Scope, signal: AbortSignal): Promise<SessionInfo[]>;
   preview(session: SessionInfo, signal: AbortSignal): Promise<Preview>;
+  models?(sessions: readonly SessionInfo[], signal: AbortSignal): Promise<ReadonlyMap<string, SessionModel>>;
   rename?(session: SessionInfo, title: string): Promise<void>;
 }
 export const MAX_PREVIEW_BYTES = 16 * 1024 * 1024;
@@ -80,7 +81,7 @@ export function previewFromManager(manager: DetailManager): Preview {
 }
 
 /** Parse in memory only. SessionManager.open() may rewrite legacy files. */
-export function previewFromText(text: string, cwd: string): Preview {
+function managerFromText(text: string, cwd: string): SessionManager {
   const entries = parseSessionEntries(text);
   if (!entries.length || entries[0]?.type !== "session") throw new Error("会话头缺失或损坏");
   const header = entries[0];
@@ -88,8 +89,22 @@ export function previewFromText(text: string, cwd: string): Preview {
     throw new Error("会话头格式不受支持");
   }
   validateEntries(entries);
-  const memory = SessionManager.inMemory(cwd, undefined, entries);
-  return previewFromManager(memory);
+  return SessionManager.inMemory(cwd, undefined, entries);
+}
+export function previewFromText(text: string, cwd: string): Preview {
+  return previewFromManager(managerFromText(text, cwd));
+}
+/** Same effective-branch model as details; no prompt/reply extraction. */
+export function modelFromText(text: string, cwd: string): SessionModel | undefined {
+  const manager = managerFromText(text, cwd);
+  const entries = manager.getEntries();
+  const ids = new Set(entries.map((entry) => entry.id));
+  if (entries.some((entry) => entry.parentId !== null && !ids.has(entry.parentId))) throw new Error("会话分支缺少父条目");
+  return checkedModel(manager.buildSessionProjection().model);
+}
+function checkedModel(model: SessionProjection["model"]): SessionModel | undefined {
+  return model && typeof model.provider === "string" && model.provider.trim() && typeof model.modelId === "string" && model.modelId.trim()
+    ? { provider: model.provider, modelId: model.modelId } : undefined;
 }
 
 function validateEntries(entries: FileEntry[]): void {
@@ -117,12 +132,12 @@ function validateEntries(entries: FileEntry[]): void {
   }
 }
 
-export async function readPreview(path: string, cwd: string, signal: AbortSignal): Promise<Preview> {
+async function readSessionText(path: string, signal: AbortSignal): Promise<string | undefined> {
   signal.throwIfAborted();
   const file = await open(path, "r");
   try {
     const size = (await file.stat()).size;
-    if (size > MAX_PREVIEW_BYTES) return { messages: [], note: "文件超过 16 MiB，已跳过预览；仍可恢复。" };
+    if (size > MAX_PREVIEW_BYTES) return undefined;
     // Bound the actual read as well as stat: another process may append meanwhile.
     const buffer = Buffer.alloc(size + 1);
     let offset = 0;
@@ -133,11 +148,18 @@ export async function readPreview(path: string, cwd: string, signal: AbortSignal
       offset += bytesRead;
     }
     signal.throwIfAborted();
-    return previewFromText(buffer.subarray(0, Math.min(offset, size)).toString("utf8"), cwd);
+    if (offset !== size) throw new Error("会话正在写入，请刷新后重试");
+    return buffer.subarray(0, size).toString("utf8");
   } finally { await file.close(); }
 }
 
+export async function readPreview(path: string, cwd: string, signal: AbortSignal): Promise<Preview> {
+  const text = await readSessionText(path, signal);
+  return text === undefined ? { messages: [], note: "文件超过 16 MiB，已跳过预览；仍可恢复。" } : previewFromText(text, cwd);
+}
+
 export function createRepository(ctx: ExtensionContext, setCurrentName?: (name: string) => void, titles: TitleStore = createTitleStore()): SessionRepository {
+  const modelCache = new Map<string, { revision: string; model?: SessionModel }>();
   const isCurrent = (session: SessionInfo) => pathKey(session.path) === pathKey(ctx.sessionManager.getSessionFile() ?? "");
   return {
     async list(scope, signal) {
@@ -156,6 +178,34 @@ export function createRepository(ctx: ExtensionContext, setCurrentName?: (name: 
       }
       signal.throwIfAborted();
       return sessions;
+    },
+    async models(sessions, signal) {
+      const result = new Map<string, SessionModel>();
+      for (let start = 0; start < sessions.length; start += 4) {
+        signal.throwIfAborted();
+        await Promise.all(sessions.slice(start, start + 4).map(async (session) => {
+          const key = pathKey(session.path);
+          try {
+            let model: SessionModel | undefined;
+            if (isCurrent(session)) model = checkedModel(ctx.sessionManager.buildSessionProjection().model);
+            else {
+              const info = await stat(session.path);
+              signal.throwIfAborted();
+              const revision = `${info.size}:${info.mtimeMs}:${info.ctimeMs}`;
+              const cached = modelCache.get(key);
+              if (cached?.revision === revision) model = cached.model;
+              else {
+                const text = await readSessionText(session.path, signal);
+                model = text === undefined ? undefined : modelFromText(text, session.cwd);
+                modelCache.set(key, { revision, model });
+              }
+            }
+            if (model) result.set(key, model);
+          } catch { signal.throwIfAborted(); /* Unknown model never hides a history. */ }
+        }));
+      }
+      signal.throwIfAborted();
+      return result;
     },
     async rename(session, title) {
       const clean = safeText(title).slice(0, 160);

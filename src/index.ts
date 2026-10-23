@@ -21,7 +21,7 @@ export default function sessionViewer(pi: ExtensionAPI): void {
   let outcome = "completed";
 
   pi.registerCommand(COMMAND, {
-    description: "按项目浏览、搜索、预览并恢复 Pi 历史会话",
+    description: "按项目、时间、模型或状态浏览、搜索并恢复 Pi 历史会话",
     handler: async (_args, ctx) => {
       if (ctx.mode !== "tui" || !ctx.hasUI || opening || shuttingDown) return;
       opening = true;
@@ -32,6 +32,7 @@ export default function sessionViewer(pi: ExtensionAPI): void {
             cwd: ctx.cwd,
             currentFile: ctx.sessionManager.getSessionFile(),
             currentStatus: () => !ctx.isIdle() ? "Working" : ctx.hasPendingMessages() ? "Queued" : terminalStates.get(ctx.sessionManager.getSessionId()) ?? "Ready",
+            currentModel: () => ctx.sessionManager.buildSessionProjection().model ?? undefined,
             repository: createRepository(ctx, (name) => pi.setSessionName(name), titles),
             markdownTheme: getMarkdownTheme(),
             theme, keybindings,
@@ -87,6 +88,7 @@ export default function sessionViewer(pi: ExtensionAPI): void {
   });
   // message_end extensions run BEFORE persistence. These events run after the
   // relevant message append, including before a potentially long-running tool.
+  pi.on("model_select", () => { browser?.refreshCurrent(); });
   pi.on("tool_execution_start", () => { browser?.refreshCurrent(); });
   pi.on("turn_end", () => { browser?.refreshCurrent(); });
 

@@ -1,15 +1,29 @@
 {
   "name": "pi-session-viewer",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "type": "module",
   "description": "Lightweight session browser extension for Pi",
   "license": "UNLICENSED",
-  "repository": { "type": "git", "url": "https://github.com/De0ta/PiSessionViewer.git" },
-  "keywords": ["pi-package"],
-  "pi": { "extensions": ["./src/index.ts"] },
-  "files": ["src", "README.md"],
-  "engines": { "node": ">=22.19.0" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/De0ta/PiSessionViewer.git"
+  },
+  "keywords": [
+    "pi-package"
+  ],
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22.19.0"
+  },
   "scripts": {
     "check": "tsc --noEmit",
     "test": "tsx --test test/*.test.ts"
