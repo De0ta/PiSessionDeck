@@ -1,11 +1,15 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { access, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const project = fileURLToPath(new URL("../", import.meta.url));
+const publicMode = process.argv.includes("--public");
+const refIndex = process.argv.indexOf("--ref");
+const requestedRef = refIndex < 0 ? undefined : process.argv[refIndex + 1];
+assert.ok(refIndex < 0 || requestedRef, "--ref needs a tag or commit");
 const root = await mkdtemp(join(tmpdir(), "pi-session-viewer-install-"));
 const cwd = join(root, "work");
 const agent = join(root, "agent");
@@ -19,7 +23,15 @@ const env = { ...process.env,
   npm_config_ignore_scripts: "true", npm_config_audit: "false", npm_config_fund: "false",
   npm_config_update_notifier: "false", npm_config_offline: "true",
 };
-delete env.NODE_PATH; delete env.NODE_OPTIONS;
+delete env.NODE_PATH; delete env.NODE_OPTIONS; delete env.GIT_CONFIG_PARAMETERS;
+if (publicMode) {
+  Object.assign(env, {
+    GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: join(root, "empty-gitconfig"), GIT_CONFIG_COUNT: "1",
+    GIT_CONFIG_KEY_0: "credential.helper", GIT_CONFIG_VALUE_0: "",
+    GIT_ASKPASS: "", SSH_ASKPASS: "",
+  });
+  delete env.GIT_CONFIG_KEY_1; delete env.GIT_CONFIG_VALUE_1;
+}
 // Avoid inherited case-insensitive npm settings conflicting on Windows.
 for (const key of Object.keys(env)) {
   if (key.startsWith("NPM_CONFIG_") && Object.hasOwn(env, key.toLowerCase())) delete env[key];
@@ -32,11 +44,14 @@ function run(command, args, where = cwd) {
 }
 try {
   await mkdir(cwd); await mkdir(agent);
-  const sha = run("git", ["rev-parse", "HEAD"], project);
-  const source = `git:https://github.com/De0ta/PiSessionViewer.git@${sha}`;
+  if (publicMode) await writeFile(env.GIT_CONFIG_GLOBAL, "");
+  const sha = run("git", ["rev-parse", "--verify", `${requestedRef ?? "HEAD"}^{commit}`], project);
+  const ref = requestedRef ?? sha;
+  const source = publicMode ? `git:github.com/De0ta/PiSessionViewer@${ref}`
+    : `git:https://github.com/De0ta/PiSessionViewer.git@${ref}`;
   const hostEntry = import.meta.resolve("@earendil-works/pi-coding-agent");
   const cli = resolve(dirname(fileURLToPath(hostEntry)), "bundle", "cli.js");
-  // Real CLI and real package manager; only Git transport is redirected locally.
+  // Real CLI/package manager. Default transport is local; --public requires anonymous GitHub access.
   run(process.execPath, [cli, "install", source, "--no-approve"]);
   const settings = JSON.parse(await readFile(join(agent, "settings.json"), "utf8"));
   assert.ok(settings.packages.includes(source), "CLI must persist the pinned source in isolated settings");
@@ -59,7 +74,9 @@ try {
   assert.ok(loaded.extensions[0].commands.has("session-browser"));
   const manifest = JSON.parse(await readFile(join(installed, "package.json"), "utf8"));
   console.log(`PASS: real pi install, pinned ${sha.slice(0, 7)}, package ${manifest.version}, persisted settings and loader registration.`);
-  console.log("Git transport redirected to local committed HEAD; no public reachability claim, terminal, provider call, real history, global install, or publication.");
+  console.log(publicMode
+    ? "Anonymous GitHub transport with credential helpers disabled. No terminal, provider call, real history, global install, or publication."
+    : "Git transport redirected to local committed HEAD; no public reachability claim, terminal, provider call, real history, global install, or publication.");
 } finally {
   await rm(root, { recursive: true, force: true });
 }

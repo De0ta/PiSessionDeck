@@ -6,12 +6,12 @@
 - 本机此前核查：Codex CLI `0.164.0`，`@earendil-works/pi-coding-agent` `1.4.0`。
 - 本轮终端核查：Windows/Git Bash，Node `v24.13.0`，`process.platform === "win32"`。这不是 WSL 运行时。
 - Pi 原生 `/resume` 已具备历史搜索、恢复、重命名、删除和范围切换；本项目轻量界面增强浏览与预览，不替代其全部功能。
-- 项目包名 `pi-session-viewer`、命令 `/session-browser`、版本`1.0.0`（发布准备中），MIT；GitHub当前仍为私有仓库 <https://github.com/De0ta/PiSessionViewer>。未发布 npm 包。
+- 项目包名 `pi-session-viewer`、命令 `/session-browser`、版本`1.0.0`，MIT；GitHub已公开 <https://github.com/De0ta/PiSessionViewer>。未发布 npm 包。
 - Pi 扩展可提供自定义 TUI、编辑器和终端输入监听。空输入左键入口技术上可实现，不必向模型发送 prompt。
 
 - v1.0修复历史model/provider/reasoning字段终端控制注入，并在POSIX保留合法反斜杠；回归测试覆盖OSC52/标题/清屏定位及Linux/macOS路径。
 - 打包白名单16文件，包含源码、许可证、变更记录与安装指南；真实Pi加载器从临时解包目录直接按manifest加载。Git安装smoke调用实际CLI，临时配置和本地Git传输，不使用用户状态或模型。
-- Windows/Ubuntu×Node22.19/24的CI已配置，结果待运行；当前Windows/Node24本地97项测试和两种smoke通过，人工终端端到端未验收。
+- Windows/Ubuntu×Node22.19/24四组CI已全部通过（run39999387318）；97测试和两种smoke通过。禁用Git凭据的匿名固定提交实际安装/加载也通过；人工终端端到端未验收。独立审查无发布阻塞，7提交/112文件对象未发现凭据或真实会话/截图。
 
 ## 已找到的外部方案
 

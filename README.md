@@ -39,7 +39,7 @@ pi install git:github.com/De0ta/PiSessionViewer@v1.0.0
 | 环境 | 验证情况 |
 | --- | --- |
 | Windows / Node 24 / Pi 1.4.0 | 本地自动化与独立加载验证通过；真实终端端到端未纳入自动化 |
-| Windows + Ubuntu / Node 22.19、24 | 已配置CI，首轮结果待运行 |
+| Windows + Ubuntu / Node 22.19、24 | 四组CI、97测试、发布包加载与Git安装smoke全部通过 |
 | Linux真实终端 / SSH / tmux | 未人工验收；自动化通过也不等于这些交互环境全部验证 |
 | macOS、其他Pi版本 | 未验证 |
 
@@ -82,6 +82,10 @@ Linux按原生POSIX路径处理，无Windows专用运行依赖；请使用Linux�
 - 没有后台驻留、远程连接、实时多会话状态、跨进程停止、置顶/归档/删除、worktree。模型标题仅用于命名，不承担任务执行。不替代 Pi 原生 `/resume` 的全部管理功能。
 - 提交前只读核查文件存在/非空、64 KiB内的会话头、ID/目录/版本与文件修订、目标目录存在且可访问；缺失或异常留在转换页，不创建文件，也不通过`process.chdir()`或原地迁移修复。预检不完整解析全文件、不能杜绝随后发生的文件系统竞态或宿主内部错误；Pi原生恢复可能迁移旧格式，这是实际恢复而非浏览/预检的行为。
 
+## 发布验证
+
+仓库现已公开，采用MIT；[四组CI](https://github.com/De0ta/PiSessionViewer/actions/runs/39999387318)通过。禁用Git凭据后的匿名固定提交安装和真实Pi加载也已通过。详见[发布验证记录](docs/release-v1.0.md)。Linux真实终端交互仍待人工验收，不保证所有终端组合。
+
 ## 开发与验证
 
 ```sh
@@ -89,10 +93,13 @@ npm ci
 npm run check
 npm test
 npm run smoke:package
+npm run smoke:install
 pi -e .
 ```
 
 最后一条命令仅在本次启动试用源码；安装后不要再同时用`-e .`加载第二份。`smoke:package`会在临时目录打包/解包，通过真实Pi加载器验证发布源码，在包内无依赖目录的情况下注册命令；不附着终端、不请求模型、不恢复真实历史、不改变全局安装。
+
+公开标签可单独检查匿名安装：`npm run smoke:install -- --public --ref v1.0.0`。默认Git smoke重定向到本地已提交HEAD；只有公开模式实际访问GitHub。
 
 测试使用临时目录和合成会话，无真实模型请求；包含 Pi 真实扩展加载器与受控宿主替身。**尚未在真实交互终端中验收，也未自动安装到用户 Pi。**
 

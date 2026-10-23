@@ -50,6 +50,8 @@ pi remove git:github.com/De0ta/PiSessionViewer@v1.0.0
 
 ## 平台与故障排查
 
+Windows/Ubuntu×Node22.19/24四组CI、97测试与两种smoke已通过，禁用Git凭据的匿名固定提交安装也已验证。Linux真实终端交互仍待人工验收，不能由此承诺所有终端、SSH或tmux组合。
+
 Linux应使用原生Node/Pi、Linux项目目录和对应本机会话。Windows路径不会自动映射成WSL/Linux路径；缺失目录会在恢复预检时拒绝，不伪造目录或改写历史头。文件名中的合法POSIX反斜杠按普通字符保留。
 
 - 找不到命令：确认安装的是Pi 1.4.x，检查`pi list`，完全重启Pi；源码目录已经移动的旧本地安装应移除。
@@ -72,5 +74,7 @@ pi -e .
 ```
 
 前两个smoke只在临时目录中检查发布包和Git安装/加载，不附着终端、不请求模型、不恢复真实历史、不修改个人全局安装。Git smoke测试已提交HEAD，不包含未提交修改，默认将Git远程传输重定向到本地仓库；它不证明GitHub公网可达。
+
+仓库公开后，可执行`npm run smoke:install -- --public --ref v1.0.0`检查真实匿名GitHub固定标签安装。该模式禁用系统/全局Git配置和凭据helper，仍使用临时Pi配置，不改用户全局安装。
 
 `pi -e .`仅本次启动试用，会进入真实交互环境；请在可丢弃项目中手工验收，并且不要同时启用已安装版。
