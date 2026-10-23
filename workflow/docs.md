@@ -6,7 +6,7 @@
 - 本机此前核查：Codex CLI `0.164.0`，`@earendil-works/pi-coding-agent` `1.4.0`。
 - 本轮终端核查：Windows/Git Bash，Node `v24.13.0`，`process.platform === "win32"`。这不是 WSL 运行时。
 - Pi 原生 `/resume` 已具备历史搜索、恢复、重命名、删除和范围切换；本项目轻量界面增强浏览与预览，不替代其全部功能。
-- 项目包名 `pi-session-viewer`、命令 `/session-browser`、版本 `0.5.0`；私有仓库 <https://github.com/De0ta/PiSessionViewer>。未发布 npm 包。
+- 项目包名 `pi-session-viewer`、命令 `/session-browser`、版本 `0.6.0`；私有仓库 <https://github.com/De0ta/PiSessionViewer>。未发布 npm 包。
 - Pi 扩展可提供自定义 TUI、编辑器和终端输入监听。空输入左键入口技术上可实现，不必向模型发送 prompt。
 
 ## 已找到的外部方案
@@ -23,7 +23,7 @@
 
 - 空输入定义优先为严格 `""`，而非 `.trim() === ""`；空格和换行仍属于草稿。
 - 裸左键快捷键无法仅凭回调返回来保留正常左移；入口需单独处理焦点、弹窗和重入。
-- Pi 1.4 的公开 `ctx.switchSession(path)` 会重建目标 session.cwd 对应的项目运行时，支持跨项目恢复；不提供 `cwdOverride`，缺失的目标 cwd 会报错，不能用 `process.chdir()` 绕过。
+- Pi 1.4 的公开 `ctx.switchSession(path)` 会重建目标 session.cwd 对应的项目运行时，支持跨项目恢复；不提供`cwdOverride`；宿主内部`rebuild`虽有目录覆盖能力，公开交互适配器不会转发。本插件转换页只提供会话目录恢复，缺失目录在页内只读预检阻止；Pi原生`/resume`另有目录回退，不能用`process.chdir()`绕过。
 - 切换当前 Pi 会话会替换运行时；实时多会话需额外管理机制。
 - 主候选依赖 Linux `/proc`、抽象 Unix socket 和权限/锁语义；不能保证 Windows 原生直接可用。
 - 在 Linux/WSL 测试时应使用 Linux Node/Pi；不能默认识别或直接共享 Windows 用户目录中的活动历史。
@@ -31,7 +31,7 @@
 ## 已选定的实现
 
 - 使用 Pi 1.4 公开 API 自研 Windows 友好的轻量版，不安装 Linux host，不使用 Pi 私有接口；依赖兼容区间 `>=1.4.0 <1.5.0`。
-- 可以在任务运行时浏览，但运行中或有待处理消息时不允许恢复；确认前后均复查状态。
+- 可以在任务运行时浏览，但任务运行、有待处理消息或有任何编辑器草稿时不允许恢复；异步目标预检前后均复查。Pi可能迁移草稿，本插件不承诺自动丢弃或保全切换后的草稿。
 - 已有自定义编辑器时不覆盖，提示使用命令；默认编辑器由 CustomEditor 子类保留原生行为。
 - 全屏 UI 使用公开 `ctx.ui.custom(..., { overlay: true, overlayOptions: { width: "100%", maxHeight: "100%", row: 0, col: 0, margin: 0 } })`；逐行填满终端行列，不替换聊天组件。
 - 默认全部历史；`Tab`过滤、`F3`搜索（输入栏默认隐藏）、`g`分组、`?`帮助、`r`命名、`Enter`/`→`打开；窄屏`d`/`←`切详情/列表。
@@ -39,5 +39,7 @@
 - 当前进程状态来自 `isIdle()` / `hasPendingMessages()` 与已观察的完成/取消/错误事件；其他历史只标记 `Saved`，不检测跨进程活动或推测安全接管。
 - `g`循环Project/Recent/Model/Status；Recent按modified分为<5小时、<1天、<7天、<30天、<90天及>=90天六档（下限为前一档上限）。模型分组采用当前分支有效provider/modelId，历史元数据只读解析，4并发、16MiB上限、stat修订缓存，异常为Unknown model；当前模型实时投影优先。状态聚合沿用当前真实状态/历史Saved。
 - 各组默认5条、Show more每次5条；详情使用原生Markdown和分区裁剪保留Prompt。自动名称先本地提炼，再通过`ctx.modelRegistry.streamSimple()`后台请求当前模型拟写；15秒超时/失败保留回退，已有标题和命名标记不重算；`r`当前名称走公开API，历史别名写agent目录自有文件，恢复后转原生。
+- 恢复页面用一个ResumeFlow根组件在原浏览器与ResumePage间切换；同目录简化显示，跨目录对比路径。仅顶部内容块灰色、其他行默认底色填满遮挡，非原生弹窗。Esc返回保留同一浏览器状态；提交后无公开取消API，等待宿主结果或shutdown。
+- 提交前只读核查最多64KiB会话头、ID/cwd/版本/时间戳、目标目录可访问及文件修订；不创建缺失文件、不迁移。仍不能完整验证正文或排除之后竞态；实际恢复由宿主负责，可能迁移旧格式或发生内部错误。详见[v0.6恢复页](../docs/resume-v0.6.md)。
 - 四种分组、模型元数据及时间边界见[v0.5设计](../docs/groups-v0.5.md)；当前模型命名、按键和分色见[v0.4设计](../docs/model-titles-v0.4.md)；[v0.3设计](../docs/refinements-v0.3.md)保留历史决策。
 - 技术细节与验证边界见[全屏改版设计与验证](../docs/fullscreen-v0.2.md)。真实终端和跨项目端到端验收仍待完成。

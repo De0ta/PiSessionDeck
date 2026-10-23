@@ -1,7 +1,9 @@
-import { getMarkdownTheme, type ExtensionAPI, type ExtensionContext, type SessionInfo } from "@earendil-works/pi-coding-agent";
+import { getMarkdownTheme, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { SessionBrowser } from "./browser.ts";
 import { BrowserEditor } from "./editor.ts";
-import { pathKey, safeText } from "./model.ts";
+import { safeText } from "./model.ts";
+import { ResumeFlow } from "./resume.ts";
+import { validateResumeTarget } from "./resume-target.ts";
 import { createRepository } from "./repository.ts";
 import { createAutoTitler } from "./auto-title.ts";
 import { createTitleStore } from "./titles.ts";
@@ -12,6 +14,7 @@ type EditorFactory = NonNullable<ReturnType<ExtensionContext["ui"]["getEditorCom
 
 export default function sessionViewer(pi: ExtensionAPI): void {
   let browser: SessionBrowser | undefined;
+  let screen: ResumeFlow | undefined;
   let opening = false;
   let shuttingDown = false;
   let editorFactory: EditorFactory | undefined;
@@ -26,9 +29,9 @@ export default function sessionViewer(pi: ExtensionAPI): void {
       if (ctx.mode !== "tui" || !ctx.hasUI || opening || shuttingDown) return;
       opening = true;
       try {
-        const guard = createFocusGuard(() => browser?.close());
-        const selection = await ctx.ui.custom<SessionInfo | undefined>((tui, theme, keybindings, done) => {
-          browser = new SessionBrowser({
+        const guard = createFocusGuard(() => screen?.close());
+        await ctx.ui.custom<void>((tui, theme, keybindings, done) => {
+          screen = new ResumeFlow({
             cwd: ctx.cwd,
             currentFile: ctx.sessionManager.getSessionFile(),
             currentStatus: () => !ctx.isIdle() ? "Working" : ctx.hasPendingMessages() ? "Queued" : terminalStates.get(ctx.sessionManager.getSessionId()) ?? "Ready",
@@ -38,33 +41,24 @@ export default function sessionViewer(pi: ExtensionAPI): void {
             theme, keybindings,
             requestRender: () => tui.requestRender(),
             height: () => Math.max(1, tui.terminal.rows),
-            done,
+            canResume: () => {
+              if (shuttingDown) return "会话正在关闭，已取消恢复。";
+              if (!ctx.isIdle() || ctx.hasPendingMessages()) return "当前任务尚未结束或有排队消息，请等待完成后重试。";
+              if (ctx.ui.getEditorText() !== "") return "当前编辑器有草稿，请先返回聊天保存或清空，再恢复其他会话。";
+              return undefined;
+            },
+            validate: validateResumeTarget,
+            resume: (selection) => ctx.switchSession(selection.path),
+            done: () => done(),
           });
-          return browser;
+          browser = screen.browser;
+          return screen;
         }, { overlay: true, overlayOptions: { width: "100%", maxHeight: "100%", row: 0, col: 0, margin: 0, visible: guard.visible }, onHandle: guard.onHandle });
-        browser = undefined;
-        if (!selection || shuttingDown) return;
-        if (pathKey(selection.path) === pathKey(ctx.sessionManager.getSessionFile() ?? "")) return;
-        if (!ctx.isIdle() || ctx.hasPendingMessages()) {
-          ctx.ui.notify("当前任务尚未结束或有排队消息。请先停止或等待完成，再恢复其他会话。", "warning");
-          return;
-        }
-        const confirmed = await ctx.ui.confirm(
-          "恢复历史会话？",
-          `目标项目：${safeText(selection.cwd)}\n恢复会替换当前会话和项目运行时；当前草稿不会带过去。\n请确认没有其他 Pi 进程正在写入该会话（轻量版无法检测）。`,
-        );
-        if (!confirmed || shuttingDown) return;
-        if (!ctx.isIdle() || ctx.hasPendingMessages()) {
-          ctx.ui.notify("当前任务状态已改变，已取消恢复；请等待任务和消息队列结束。", "warning");
-          return;
-        }
-        // The browser is already closed. Successful switching invalidates this ctx.
-        await ctx.switchSession(selection.path);
-        return;
       } catch (error) {
         if (!shuttingDown) ctx.ui.notify(`会话浏览器：${safeText(String(error))}`, "error");
       } finally {
-        browser?.close();
+        screen?.close();
+        screen = undefined;
         browser = undefined;
         opening = false;
       }
@@ -126,7 +120,8 @@ export default function sessionViewer(pi: ExtensionAPI): void {
   pi.on("session_shutdown", (_event, ctx) => {
     shuttingDown = true;
     autoTitler.cancel();
-    browser?.close();
+    screen?.close();
+    screen = undefined;
     browser = undefined;
     if (ctx.hasUI && editorFactory && ctx.ui.getEditorComponent() === editorFactory) ctx.ui.setEditorComponent(undefined);
     editorFactory = undefined;

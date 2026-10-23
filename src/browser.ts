@@ -17,6 +17,7 @@ export interface BrowserOptions {
   keybindings: Pick<KeybindingsManager, "matches">;
   requestRender(): void;
   height(): number;
+  onSelect?(selection: SessionInfo): void;
   done(selection: SessionInfo | undefined): void;
 }
 
@@ -128,7 +129,10 @@ export class SessionBrowser implements Component, Focusable {
       this.selectedPath = next?.path;
       void this.loadPreview(next);
       this.renderAgain();
-    } else if (this.selected) this.finish(this.selected);
+    } else if (this.selected) {
+      if (this.options.onSelect) this.options.onSelect(this.selected);
+      else this.finish(this.selected);
+    }
   }
   private async saveRename(): Promise<void> {
     const session = this.renaming;

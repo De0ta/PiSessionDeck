@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, mkdir, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { discoverAndLoadExtensions, SessionManager, type CustomEditor, type ExtensionCommandContext, type SessionInfo } from "@earendil-works/pi-coding-agent";
 import { KeybindingsManager, ProcessTerminal, TuiMainScreen, TUI_KEYBINDINGS, type EditorTheme } from "@earendil-works/pi-tui";
 import { deferred, session, tick } from "./fixtures.ts";
 import { createFocusGuard } from "../src/overlay.ts";
+import type { ResumeFlow } from "../src/resume.ts";
 
 type EditorFactory = NonNullable<ReturnType<ExtensionCommandContext["ui"]["getEditorComponent"]>>;
 async function harness(run: (state: Awaited<ReturnType<typeof setup>>) => Promise<void>) {
@@ -29,7 +30,7 @@ async function setup(dir: string) {
   const notices: string[] = [];
   const switches: string[] = [];
   const order: string[] = [];
-  const state = { idle: true, pending: false, confirm: true, hasUI: true, mode: "tui", selection: undefined as SessionInfo | undefined, customCalls: 0, duringConfirm: () => {} };
+  const state = { idle: true, pending: false, draft: "", hasUI: true, mode: "tui", customCalls: 0 };
   const manager = SessionManager.inMemory(cwd);
   loaded.runtime.getSessionName = () => manager.getSessionName();
   loaded.runtime.setSessionName = (name) => { manager.appendSessionInfo(name); };
@@ -41,8 +42,9 @@ async function setup(dir: string) {
       getEditorComponent: () => factory,
       setEditorComponent: (value: EditorFactory | undefined) => { factory = value; },
       notify: (text: string) => { notices.push(text); },
-      custom: async () => { state.customCalls++; order.push("ui-closed"); return state.selection; },
-      confirm: async () => { order.push("confirm"); state.duringConfirm(); return state.confirm; },
+      custom: async () => { state.customCalls++; order.push("ui-closed"); },
+      getEditorText: () => state.draft,
+      confirm: async () => { throw new Error("Native confirmation dialogs must not be used"); },
     },
     switchSession: async (path: string) => { order.push("switch"); switches.push(path); return { cancelled: false }; },
   } as unknown as ExtensionCommandContext; // Deliberately partial host double, not a production context cast.
@@ -110,33 +112,49 @@ test("已有编辑器不被覆盖；非UI命令直接退出", async () => harnes
   assert.equal(h.state.customCalls, 0);
 }));
 
-test("恢复必须先关闭UI、确认、切换；忙碌或取消不切换", async () => harness(async (h) => {
-  h.state.selection = session("target");
-  h.state.idle = false;
-  await h.command.handler("", h.ctx);
-  assert.equal(h.switches.length, 0);
-  assert.match(h.notices[0]!, /任务尚未结束/);
-  h.state.idle = true;
-  h.state.confirm = false;
-  await h.command.handler("", h.ctx);
-  assert.equal(h.switches.length, 0);
-  h.state.confirm = true;
-  h.order.length = 0;
-  await h.command.handler("", h.ctx);
-  assert.deepEqual(h.order, ["ui-closed", "confirm", "switch"]);
-  assert.deepEqual(h.switches, [h.state.selection.path]);
-  h.state.pending = true;
-  await h.command.handler("", h.ctx);
-  assert.equal(h.switches.length, 1);
-  h.state.pending = false;
-  h.state.duringConfirm = () => { h.state.idle = false; };
-  await h.command.handler("", h.ctx);
-  assert.equal(h.switches.length, 1);
-  h.state.idle = true;
-  h.state.duringConfirm = () => { h.state.pending = true; };
-  await h.command.handler("", h.ctx);
-  assert.equal(h.switches.length, 1);
-  assert.match(h.notices.at(-1)!, /状态已改变/);
+test("真实入口连接独立转换页与只读预检；忙碌/队列/草稿和预检后状态变化留在页内", async () => harness(async (h) => {
+  const target = session("target", { cwd: h.ctx.cwd, path: join(h.ctx.cwd, "target.jsonl") });
+  await writeFile(target.path, JSON.stringify({ type: "session", version: 3, id: target.id, cwd: target.cwd, timestamp: new Date().toISOString() }) + "\n");
+  // Isolate public discovery from real user history. Node tests in this file are sequential.
+  const original = SessionManager.listAll;
+  SessionManager.listAll = async () => [target];
+  let drive: (component: ResumeFlow) => Promise<void> = async () => {};
+  h.ctx.ui.custom = async <T>(factory: Parameters<typeof h.ctx.ui.custom<T>>[0]) => {
+    const result = deferred<T>();
+    const tui = new TuiMainScreen(new ProcessTerminal()); tui.requestRender = () => {};
+    // Deliberately partial UI host double: production only consumes theme.style here.
+    const theme = { style: (text: string) => text } as unknown as Parameters<typeof factory>[1];
+    const keys = new KeybindingsManager(TUI_KEYBINDINGS) as unknown as Parameters<typeof factory>[2];
+    const component = await factory(tui, theme, keys, (value) => { h.order.push("ui-closed"); result.resolve(value); });
+    const flow = component as ResumeFlow; // Actual loader-created component, not a production cast.
+    for (let i = 0; i < 100 && !flow.browser.selected; i++) await new Promise((resolve) => setTimeout(resolve, 5));
+    assert.equal(flow.browser.selected?.id, target.id);
+    await drive(flow);
+    return result.promise;
+  };
+  try {
+    for (const kind of ["busy", "pending", "draft", "changed", "cancel", "success"]) {
+      h.state.idle = kind !== "busy"; h.state.pending = kind === "pending"; h.state.draft = kind === "draft" ? " " : "";
+      drive = async (flow) => {
+        flow.handleInput("\r"); assert.equal(flow.phase, "resume");
+        if (kind === "cancel") { flow.handleInput("\x1b"); assert.equal(flow.phase, "browse"); flow.close(); return; }
+        flow.handleInput("\r");
+        if (kind === "changed") h.state.pending = true;
+        for (let i = 0; i < 30 && !h.order.includes("ui-closed"); i++) {
+          await new Promise((resolve) => setTimeout(resolve, 5));
+          const text = flow.render(120).join("\n");
+          if (text.includes("无法恢复")) break;
+        }
+        if (kind !== "success") { assert.match(flow.render(120).join("\n"), /无法恢复/); flow.close(); }
+      };
+      h.order.length = 0;
+      await h.command.handler("", h.ctx);
+      assert.equal(h.switches.length, kind === "success" ? 1 : 0, `${kind}: ${h.notices.join("; ")}`);
+    }
+    assert.deepEqual(h.order, ["switch", "ui-closed"]);
+    assert.deepEqual(h.switches, [target.path]);
+    assert.deepEqual(h.notices, [], "conversion errors stay inside the page, not native dialogs");
+  } finally { SessionManager.listAll = original; }
 }));
 
 test("浏览器使用终端100%覆盖层，不再替换聊天主组件", async () => harness(async (h) => {
