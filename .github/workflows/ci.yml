@@ -24,12 +24,15 @@ jobs:
         os: [ubuntu-latest, windows-latest]
         node: ["22.19.0", "24"]
     env:
-      PI_CODING_AGENT_DIR: ${{ runner.temp }}/psv-agent
-      PI_CODING_AGENT_SESSION_DIR: ${{ runner.temp }}/psv-sessions
       PI_OFFLINE: "1"
       PI_SKIP_VERSION_CHECK: "1"
       PI_TELEMETRY: "0"
     steps:
+      - name: Isolate Pi state
+        shell: bash
+        run: |
+          printf 'PI_CODING_AGENT_DIR=%s/psv-agent\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          printf 'PI_CODING_AGENT_SESSION_DIR=%s/psv-sessions\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
