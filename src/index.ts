@@ -1,8 +1,9 @@
-import type { ExtensionAPI, ExtensionContext, SessionInfo } from "@earendil-works/pi-coding-agent";
+import { getMarkdownTheme, type ExtensionAPI, type ExtensionContext, type SessionInfo } from "@earendil-works/pi-coding-agent";
 import { SessionBrowser } from "./browser.ts";
 import { BrowserEditor } from "./editor.ts";
-import { pathKey, safeText } from "./model.ts";
-import { createRepository } from "./repository.ts";
+import { pathKey, safeText, summarizeTitle } from "./model.ts";
+import { createRepository, previewFromManager } from "./repository.ts";
+import { createTitleStore } from "./titles.ts";
 import { createFocusGuard } from "./overlay.ts";
 
 const COMMAND = "session-browser";
@@ -13,6 +14,9 @@ export default function sessionViewer(pi: ExtensionAPI): void {
   let opening = false;
   let shuttingDown = false;
   let editorFactory: EditorFactory | undefined;
+  const titles = createTitleStore();
+  const terminalStates = new Map<string, "Completed" | "Stopped" | "Error">();
+  let outcome = "completed";
 
   pi.registerCommand(COMMAND, {
     description: "按项目浏览、搜索、预览并恢复 Pi 历史会话",
@@ -25,8 +29,9 @@ export default function sessionViewer(pi: ExtensionAPI): void {
           browser = new SessionBrowser({
             cwd: ctx.cwd,
             currentFile: ctx.sessionManager.getSessionFile(),
-            currentStatus: () => !ctx.isIdle() ? "Working" : ctx.hasPendingMessages() ? "Queued" : "Ready",
-            repository: createRepository(ctx),
+            currentStatus: () => !ctx.isIdle() ? "Working" : ctx.hasPendingMessages() ? "Queued" : terminalStates.get(ctx.sessionManager.getSessionId()) ?? "Ready",
+            repository: createRepository(ctx, (name) => pi.setSessionName(name), titles),
+            markdownTheme: getMarkdownTheme(),
             theme, keybindings,
             requestRender: () => tui.requestRender(),
             height: () => Math.max(1, tui.terminal.rows),
@@ -63,19 +68,52 @@ export default function sessionViewer(pi: ExtensionAPI): void {
     },
   });
 
-  pi.on("agent_start", () => { browser?.refreshCurrent(); });
-  pi.on("agent_settled", () => { browser?.refreshCurrent(); });
+  pi.on("agent_start", (_event, ctx) => {
+    outcome = "completed";
+    terminalStates.delete(ctx.sessionManager.getSessionId());
+    browser?.refreshCurrent();
+  });
+  pi.on("agent_before_settle", (event) => {
+    outcome = event.outcome;
+  });
+  pi.on("agent_settled", (event, ctx) => {
+    terminalStates.set(ctx.sessionManager.getSessionId(), event.aborted ? "Stopped" : outcome === "error" ? "Error" : "Completed");
+    // Settlement runs after ALL boundary hooks and their edits have committed.
+    // Naming in before_settle would leak text redacted by a later extension.
+    if (ctx.mode === "tui" && !event.aborted && outcome === "completed" && !pi.getSessionName() &&
+      !ctx.sessionManager.getEntries().some((entry) => entry.type === "custom" && entry.customType === "pi-session-viewer:auto-title")) {
+      const prompt = previewFromManager(ctx.sessionManager).details?.prompt;
+      if (prompt && prompt !== "[Omitted from context]" && prompt !== "[No text content]") {
+        pi.setSessionName(summarizeTitle(prompt));
+        pi.appendEntry("pi-session-viewer:auto-title", { method: "local", version: 1 });
+      }
+    }
+    browser?.refreshCurrent(pi.getSessionName());
+  });
   // message_end extensions run BEFORE persistence. These events run after the
   // relevant message append, including before a potentially long-running tool.
   pi.on("tool_execution_start", () => { browser?.refreshCurrent(); });
   pi.on("turn_end", () => { browser?.refreshCurrent(); });
 
-  pi.on("session_start", (_event, ctx) => {
+  pi.on("session_start", async (_event, ctx) => {
     shuttingDown = false;
     if (ctx.mode !== "tui" || !ctx.hasUI) return;
+    const file = ctx.sessionManager.getSessionFile();
+    const originalName = pi.getSessionName();
+    const importAlias = async () => {
+      if (!file) return;
+      const identity = { path: file, id: ctx.sessionManager.getSessionId() };
+      const alias = await titles.read(identity);
+      if (!alias || shuttingDown || ctx.sessionManager.getSessionFile() !== file) return;
+      // Promote the viewer alias only after restoring that session as current.
+      // A concurrent /name edit wins; never rewrite an inactive history file.
+      if (pi.getSessionName() === originalName) pi.setSessionName(alias);
+      await titles.remove(identity);
+    };
     const existing = ctx.ui.getEditorComponent();
     if (existing && existing !== editorFactory) {
       ctx.ui.notify("PiSessionViewer 未替换已有自定义编辑器；请使用 /session-browser。", "info");
+      await importAlias().catch(() => {});
       return;
     }
     editorFactory = (tui, theme, keybindings) => new BrowserEditor(tui, theme, keybindings, () => {
@@ -85,6 +123,7 @@ export default function sessionViewer(pi: ExtensionAPI): void {
       }
     });
     ctx.ui.setEditorComponent(editorFactory);
+    await importAlias().catch(() => {});
   });
 
   pi.on("session_shutdown", (_event, ctx) => {

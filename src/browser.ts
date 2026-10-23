@@ -1,15 +1,15 @@
 import type { KeybindingsManager, SessionInfo, Theme } from "@earendil-works/pi-coding-agent";
-import { Input, matchesKey, parseColor, truncateToWidth, visibleWidth, wrapTextWithAnsi, type Component, type Focusable } from "@earendil-works/pi-tui";
-import { activityTime, filterSessions, groupRows, pathKey, safeText, sessionColor, sessionTitle, type ListRow, type Preview, type Scope } from "./model.ts";
+import { Input, matchesKey, parseColor, truncateToWidth, visibleWidth, type Component, type Focusable, type MarkdownTheme } from "@earendil-works/pi-tui";
+import { activityTime, filterSessions, groupRows, pathKey, rowKey, safeText, sessionColor, sessionTitle, type ListRow, type Preview, type Scope } from "./model.ts";
 import type { SessionRepository } from "./repository.ts";
 
-const COLORS = { bg: "#0c0c0c", text: "#dadada", white: "#ffffff", dim: "#929292", border: "#555555", selected: "#659ee8", ink: "#101820", error: "#ee9696" } as const;
-type Ink = `#${string}`;
+import { COLORS, detailLines, painter, type Ink } from "./details.ts";
 type StyledLine = { text: string; color?: Ink; bold?: boolean };
 export interface BrowserOptions {
   cwd: string;
   currentFile?: string;
-  currentStatus?(): "Ready" | "Working" | "Queued";
+  currentStatus?(): "Ready" | "Working" | "Queued" | "Completed" | "Stopped" | "Error";
+  markdownTheme?: MarkdownTheme;
   repository: SessionRepository;
   theme: Pick<Theme, "style">;
   keybindings: Pick<KeybindingsManager, "matches">;
@@ -19,7 +19,13 @@ export interface BrowserOptions {
 }
 
 export class SessionBrowser implements Component, Focusable {
-  private search = new Input({ prompt: "Search: ", placeholder: "Title, project, or message" });
+  private search = new Input({ prompt: "" });
+  private renameInput = new Input({ prompt: "" });
+  private renaming: SessionInfo | undefined;
+  private renameBusy = false;
+  private renamedTitles = new Map<string, string>();
+  private expanded = new Map<string, number>();
+  private detailCache: { key: string; preview: Preview; lines: string[]; maxOffset: number } | undefined;
   private searchOpen = false;
   private helpOpen = false;
   private helpOffset = 0;
@@ -41,12 +47,16 @@ export class SessionBrowser implements Component, Focusable {
 
   constructor(options: BrowserOptions) {
     this.options = options;
-    this.search.onSubmit = () => { if (!this.loading && this.selected) this.finish(this.selected); };
+    this.search.onSubmit = () => this.activateSelection();
     this.search.onEscape = () => this.setSearch(false);
     void this.refresh();
   }
   get focused(): boolean { return this._focused; }
-  set focused(value: boolean) { this._focused = value; this.search.focused = value && this.searchOpen && !this.helpOpen; }
+  set focused(value: boolean) {
+    this._focused = value;
+    this.search.focused = value && this.searchOpen && !this.helpOpen && !this.renaming;
+    this.renameInput.focused = value && !!this.renaming && !this.renameBusy;
+  }
   get selected(): SessionInfo | undefined { return this.visibleSessions().find((s) => s.path === this.selectedPath); }
   private visibleSessions(): SessionInfo[] {
     const query = this.searchOpen ? this.search.getValue() : "";
@@ -57,12 +67,47 @@ export class SessionBrowser implements Component, Focusable {
     this.visibleCache = { sessions: this.sessions, query, scope: this.scope, grouped: this.grouped, result };
     return result;
   }
-  invalidate(): void { this.search.invalidate(); }
+  private rows(): ListRow[] {
+    return this.grouped ? groupRows(this.visibleSessions(), this.expanded) : this.visibleSessions().map((session) => ({ kind: "session", session }));
+  }
+  private choices(): ListRow[] { return this.rows().filter((row) => rowKey(row) !== undefined); }
+  private activateSelection(): void {
+    if (this.loading) return;
+    const row = this.choices().find((row) => rowKey(row) === this.selectedPath);
+    if (row?.kind === "more") {
+      const key = pathKey(row.cwd);
+      const old = this.expanded.get(key) ?? 5;
+      this.expanded.set(key, old + 5);
+      const project = this.visibleSessions().filter((s) => pathKey(s.cwd) === key);
+      const next = project[old];
+      this.selectedPath = next?.path;
+      void this.loadPreview(next);
+      this.renderAgain();
+    } else if (this.selected) this.finish(this.selected);
+  }
+  private async saveRename(): Promise<void> {
+    const session = this.renaming;
+    const title = safeText(this.renameInput.getValue()).slice(0, 160);
+    if (!session || !title || !this.options.repository.rename || this.renameBusy) return;
+    this.renameBusy = true; this.focused = this._focused; this.renderAgain();
+    try {
+      await this.options.repository.rename(session, title);
+      if (this.closed) return;
+      this.renamedTitles.set(pathKey(session.path), title);
+      this.sessions = this.sessions.map((s) => pathKey(s.path) === pathKey(session.path) ? { ...s, name: title } : s);
+      this.renaming = undefined;
+      this.error = "";
+      this.chooseValidSelection();
+    } catch (error) { if (!this.closed) this.error = `Could not rename: ${safeText(String(error))}`; }
+    finally { this.renameBusy = false; this.focused = this._focused; this.renderAgain(); }
+  }
+  invalidate(): void { this.search.invalidate(); this.renameInput.invalidate(); this.detailCache = undefined; }
   private renderAgain(): void { if (!this.closed) this.options.requestRender(); }
   private isCurrent(session: SessionInfo): boolean { return pathKey(session.path) === pathKey(this.options.currentFile ?? ""); }
   private status(session: SessionInfo): string { return this.isCurrent(session) ? (this.options.currentStatus?.() ?? "Ready") : "Saved"; }
   private setSearch(open: boolean): void {
     this.searchOpen = open;
+    this.expanded.clear();
     if (!open) this.search.setValue("");
     this.focused = this._focused;
     this.chooseValidSelection();
@@ -80,7 +125,10 @@ export class SessionBrowser implements Component, Focusable {
     try {
       const sessions = await this.options.repository.list(this.scope, controller.signal);
       if (controller.signal.aborted || this.closed) return;
-      this.sessions = sessions;
+      this.sessions = sessions.map((session) => {
+        const name = this.renamedTitles.get(pathKey(session.path));
+        return name ? { ...session, name } : session;
+      });
       this.loading = false;
       this.chooseValidSelection(true);
     } catch (error) {
@@ -91,19 +139,20 @@ export class SessionBrowser implements Component, Focusable {
     this.renderAgain();
   }
   /** Only the in-process session has a trustworthy live status/projection. */
-  refreshCurrent(): void {
+  refreshCurrent(title?: string): void {
     if (this.closed) return;
+    if (title !== undefined) this.sessions = this.sessions.map((session) => this.isCurrent(session) ? { ...session, name: title } : session);
     const selected = this.selected;
     if (selected && this.isCurrent(selected)) void this.loadPreview(selected, true);
     this.renderAgain();
   }
   private chooseValidSelection(reload = false): void {
-    const visible = this.visibleSessions();
-    const next = visible.find((s) => s.path === this.selectedPath) ??
-      visible.find((s) => this.isCurrent(s)) ?? visible[0];
-    if (reload || next?.path !== this.selectedPath) {
-      this.selectedPath = next?.path;
-      void this.loadPreview(next);
+    const choices = this.choices();
+    const next = choices.find((row) => rowKey(row) === this.selectedPath) ??
+      choices.find((row) => row.kind === "session" && this.isCurrent(row.session)) ?? choices[0];
+    if (reload || (next && rowKey(next)) !== this.selectedPath) {
+      this.selectedPath = next ? rowKey(next) : undefined;
+      void this.loadPreview(next?.kind === "session" ? next.session : undefined);
     }
   }
   private async loadPreview(session: SessionInfo | undefined, retain = false): Promise<void> {
@@ -137,6 +186,7 @@ export class SessionBrowser implements Component, Focusable {
   }
   private changeScope(): void {
     this.scope = this.scope === "all" ? "project" : "all";
+    this.expanded.clear();
     this.sessions = [];
     this.selectedPath = undefined;
     void this.loadPreview(undefined);
@@ -145,6 +195,18 @@ export class SessionBrowser implements Component, Focusable {
   handleInput(data: string): void {
     if (this.closed) return;
     if (matchesKey(data, "ctrl+c")) { this.finish(undefined); return; }
+    if (this.renaming) {
+      if (matchesKey(data, "escape") && !this.renameBusy) { this.renaming = undefined; this.focused = this._focused; }
+      else if (matchesKey(data, "enter")) { void this.saveRename(); return; }
+      else if (!this.renameBusy) this.renameInput.handleInput(data);
+      this.renderAgain(); return;
+    }
+    if (matchesKey(data, "f2") && this.selected && this.options.repository.rename) {
+      this.renaming = this.selected;
+      this.renameInput.setValue(sessionTitle(this.selected));
+      this.renameInput.handleInput("\x1b[F"); // Input.setValue preserves its old cursor; edit from the end.
+      this.focused = this._focused; this.renderAgain(); return;
+    }
     if (matchesKey(data, "escape")) {
       if (this.helpOpen) { this.helpOpen = false; this.focused = this._focused; this.renderAgain(); }
       else if (this.searchOpen) this.setSearch(false);
@@ -163,15 +225,15 @@ export class SessionBrowser implements Component, Focusable {
       this.renderAgain(); return;
     }
     if (!this.searchOpen && data === "?") { this.helpOpen = true; this.helpOffset = 0; this.focused = this._focused; this.renderAgain(); return; }
-    if (matchesKey(data, "enter")) { if (!this.loading && this.selected) this.finish(this.selected); return; }
+    if (matchesKey(data, "enter")) { this.activateSelection(); return; }
     if (matchesKey(data, "tab") || matchesKey(data, "shift+tab") || matchesKey(data, "ctrl+o")) { this.changeScope(); return; }
     if (matchesKey(data, "ctrl+r")) { void this.refresh(); return; }
-    if (!this.searchOpen && data === "g") { this.grouped = !this.grouped; this.renderAgain(); return; }
+    if (!this.searchOpen && data === "g") { this.grouped = !this.grouped; this.chooseValidSelection(); this.renderAgain(); return; }
     if (!this.searchOpen && (matchesKey(data, "right") || matchesKey(data, "left"))) {
       this.narrowDetails = matchesKey(data, "right"); this.renderAgain(); return;
     }
     if (matchesKey(data, "shift+up") || matchesKey(data, "shift+down")) {
-      this.previewOffset = Math.max(0, this.previewOffset + (matchesKey(data, "shift+up") ? -3 : 3));
+      this.previewOffset = Math.max(0, this.previewOffset + (matchesKey(data, "shift+up") ? -1 : 1));
       this.renderAgain(); return;
     }
     const up = this.options.keybindings.matches(data, "tui.select.up");
@@ -179,46 +241,37 @@ export class SessionBrowser implements Component, Focusable {
     const pageUp = matchesKey(data, "pageUp");
     const pageDown = matchesKey(data, "pageDown");
     if (up || down || pageUp || pageDown) {
-      const visible = this.visibleSessions();
+      const visible = this.choices();
       if (visible.length) {
-        const index = Math.max(0, visible.findIndex((s) => s.path === this.selectedPath));
+        const index = Math.max(0, visible.findIndex((row) => rowKey(row) === this.selectedPath));
         const step = pageUp || pageDown ? Math.max(1, this.options.height() - 8) : 1;
         const next = visible[Math.max(0, Math.min(visible.length - 1, index + (up || pageUp ? -step : step)))];
-        if (next && next.path !== this.selectedPath) { this.selectedPath = next.path; void this.loadPreview(next); }
+        if (next && rowKey(next) !== this.selectedPath) { this.selectedPath = rowKey(next); void this.loadPreview(next.kind === "session" ? next.session : undefined); }
       }
       this.renderAgain(); return;
     }
     if (this.searchOpen) {
       const query = this.search.getValue();
       this.search.handleInput(data);
-      if (query !== this.search.getValue()) this.chooseValidSelection();
+      if (query !== this.search.getValue()) { this.expanded.clear(); this.chooseValidSelection(); }
       this.renderAgain();
     }
   }
 
-  private detailLines(columns: number): StyledLine[] {
+  private details(columns: number, height: number): string[] {
     const selected = this.selected;
-    if (!selected) return [{ text: this.preview.note ?? "No task selected.", color: COLORS.dim }];
-    const lines: StyledLine[] = [];
-    const add = (text: string, color: Ink = COLORS.text, bold = false) => {
-      for (const part of wrapTextWithAnsi(safeText(text, true), Math.max(1, columns))) lines.push({ text: part, color, bold });
-    };
-    add(sessionTitle(selected), COLORS.white, true);
-    add(`○ ${this.status(selected)}${this.isCurrent(selected) ? " · Current" : ""}`, COLORS.dim);
-    add("");
-    add(`Model: ${this.preview.details?.model ?? "Unknown"}`);
-    add(`Reasoning: ${this.preview.details?.reasoning ?? "Not recorded"}`);
-    add("");
-    add("Project", COLORS.dim); add(selected.cwd || "Unknown"); add("");
-    add("Last message", COLORS.dim); add(this.preview.details?.lastMessage ?? "No reply yet"); add("");
-    add("Prompt", COLORS.dim); add(this.preview.details?.prompt ?? "Not recorded");
-    if (this.preview.note) { add(""); add(this.preview.note, COLORS.dim); }
-    return lines;
+    if (!selected) return [this.selectedPath?.startsWith("more:") ? "Enter to show the next 5 conversations." : this.preview.note ?? "No task selected."];
+    const key = JSON.stringify([columns, height, this.previewOffset, selected.path, selected.name, this.status(selected)]);
+    if (this.detailCache?.key === key && this.detailCache.preview === this.preview) return this.detailCache.lines;
+    const result = detailLines({ session: selected, preview: this.preview, status: this.status(selected), current: this.isCurrent(selected), width: columns, height, offset: this.previewOffset, paint: painter(this.options.theme), markdownTheme: this.options.markdownTheme });
+    this.previewOffset = Math.min(this.previewOffset, result.maxOffset);
+    this.detailCache = { key, preview: this.preview, ...result };
+    return result.lines;
   }
   private helpLines(width: number): StyledLine[] {
     const groups = [
       ["Navigate", "↑ / ↓       Move", "Enter       Open", "PgUp/PgDn   Page", "Esc         Back", "Ctrl+C      Close"],
-      ["Tasks", "Enter       Resume", "Shift+↑/↓   Scroll details", "← / →       List / details (narrow)"],
+      ["Tasks", "Enter       Resume / Show more", "Shift+↑/↓   Scroll last reply", "← / →       List / details (narrow)", ...(this.options.repository.rename ? ["F2          Rename task"] : [])],
       ["View", "Tab/S-Tab   Filter", "F3          Search", "g           Group", "Ctrl+R      Refresh", "?           Help"],
     ];
     if (width >= 100) {
@@ -242,38 +295,44 @@ export class SessionBrowser implements Component, Focusable {
     };
     const cell = (text: string, columns: number, color: Ink = COLORS.text, bg: Ink = COLORS.bg, bold = false) =>
       this.options.theme.style(fit(text, columns), { fg: parseColor(color), bg: parseColor(bg), bold });
-    const lines = [
-      cell(`Session manager    Group: ${this.grouped ? "Project" : "Recent"}  g`, width, COLORS.white, COLORS.bg, true),
-      cell(`${this.scope === "all" ? "[All]" : " All "}  ${this.scope === "project" ? "[This project]" : " This project "}    ${this.visibleSessions().length} tasks    Tab filter · F3 search`, width, COLORS.dim),
-    ];
-    if (this.searchOpen && !this.helpOpen) lines.push(cell(this.search.render(width).join(""), width));
-    lines.push(cell("─".repeat(width), width, COLORS.border));
-    const bodyHeight = Math.max(0, height - lines.length - 2);
-    const contentHeight = Math.max(0, bodyHeight - 1);
+    const paint = painter(this.options.theme);
     const wide = width >= 100;
     const rightWidth = wide ? Math.max(34, Math.min(58, Math.floor(width * 0.3))) : width;
     const leftWidth = wide ? width - rightWidth - 3 : width;
-    const rows: ListRow[] = this.grouped ? groupRows(this.visibleSessions()) : this.visibleSessions().map((session) => ({ kind: "session", session }));
-    const selectedRow = rows.findIndex((row) => row.kind === "session" && row.session.path === this.selectedPath);
+    const label = this.renaming ? "Rename › " : "Search › ";
+    const activeInput = this.renaming ? this.renameInput : this.search;
+    const searchText = this.renaming || this.searchOpen ? activeInput.render(Math.max(1, leftWidth - 9)).join("") : "";
+    const searchBar = cell(paint(label, COLORS.blue, true) + searchText, leftWidth, COLORS.text, COLORS.search);
+    const lines = [
+      cell(`Session manager    Group: ${this.grouped ? "Project" : "Recent"}  g`, width, COLORS.white, COLORS.bg, true),
+      cell(`${this.scope === "all" ? "[All]" : " All "}  ${this.scope === "project" ? "[This project]" : " This project "}    ${this.visibleSessions().length} tasks    Tab filter · F3 search`, width, COLORS.dim),
+      searchBar + (wide ? cell(" │ ", 3, COLORS.border) + cell("", rightWidth) : ""),
+      cell("─".repeat(width), width, COLORS.border),
+    ];
+    const bodyHeight = Math.max(0, height - lines.length - 2);
+    const contentHeight = Math.max(0, bodyHeight - 1);
+    const rows = this.rows();
+    const selectedRow = rows.findIndex((row) => rowKey(row) === this.selectedPath);
     const start = Math.max(0, Math.min(Math.max(0, rows.length - contentHeight), selectedRow - Math.floor(contentHeight / 2)));
     const table = (title: string, status: string, updated: string) => {
       if (leftWidth < 42) return fit(title, leftWidth);
       return `${fit(title, leftWidth - 22)} ${fit(status, 9)} ${fit(updated, 11)}`;
     };
     const list = rows.slice(start, start + contentHeight).map((row) => {
-      if (row.kind === "project") {
-        const count = this.visibleSessions().filter((s) => pathKey(s.cwd) === pathKey(row.cwd)).length;
-        return cell(`${safeText(row.cwd) || "Unknown project"}  ${count}`, leftWidth, COLORS.dim);
-      }
-      const selected = row.session.path === this.selectedPath;
-      const title = `${selected ? "›" : " "} ○ ${sessionTitle(row.session)}`;
-      return cell(table(title, this.status(row.session), activityTime(row.session.modified)), leftWidth,
-        selected ? COLORS.ink : sessionColor(row.session.id), selected ? COLORS.selected : COLORS.bg, selected);
+      if (row.kind === "spacer") return cell("", leftWidth);
+      if (row.kind === "project") return cell(`${safeText(row.cwd) || "Unknown project"}  ${row.count}`, leftWidth, COLORS.dim);
+      const selected = rowKey(row) === this.selectedPath;
+      const bg = selected ? COLORS.selected : COLORS.bg;
+      if (row.kind === "more") return cell(`${selected ? "›" : " "}   Show more (${row.remaining} remaining)`, leftWidth, selected ? COLORS.ink : COLORS.dim, bg);
+      const status = this.status(row.session);
+      const circle = status === "Working" ? COLORS.blue : status === "Completed" ? COLORS.green : COLORS.dim;
+      const title = paint(selected ? "› " : "  ", selected ? COLORS.ink : COLORS.dim) + paint("○ ", circle) + paint(sessionTitle(row.session), selected ? COLORS.ink : sessionColor(row.session.id), selected);
+      const titleWidth = leftWidth < 42 ? leftWidth : leftWidth - 22;
+      const titleCell = cell(title, titleWidth, COLORS.text, bg);
+      return leftWidth < 42 ? titleCell : titleCell + cell(` ${fit(status, 9)} ${fit(activityTime(row.session.modified), 11)}`, 22, COLORS.dim, bg);
     });
     if (!list.length) list.push(cell(this.loading ? "Loading tasks..." : "No matching tasks.", leftWidth, COLORS.dim));
-    const detailLines = this.detailLines(rightWidth);
-    this.previewOffset = Math.min(this.previewOffset, Math.max(0, detailLines.length - contentHeight));
-    const details = detailLines.slice(this.previewOffset, this.previewOffset + contentHeight);
+    const details = this.details(rightWidth, contentHeight);
     const draw = (line: StyledLine | undefined, columns: number) => cell(line?.text ?? "", columns, line?.color ?? COLORS.text, COLORS.bg, line?.bold);
     if (this.helpOpen) {
       const help = this.helpLines(width);
@@ -283,14 +342,15 @@ export class SessionBrowser implements Component, Focusable {
     } else if (wide) {
       const separator = cell(" │ ", 3, COLORS.border);
       if (bodyHeight) lines.push(cell(table("Tasks", "Status", "Updated"), leftWidth, COLORS.dim) + separator + cell("Task details", rightWidth, COLORS.white, COLORS.bg, true));
-      for (let i = 0; i < contentHeight; i++) lines.push((list[i] ?? cell("", leftWidth)) + separator + draw(details[i], rightWidth));
+      for (let i = 0; i < contentHeight; i++) lines.push((list[i] ?? cell("", leftWidth)) + separator + cell(details[i] ?? "", rightWidth));
     } else {
       if (bodyHeight) lines.push(cell(this.narrowDetails ? "Task details    ← tasks" : "Tasks    → details", width, COLORS.white, COLORS.bg, true));
-      for (let i = 0; i < contentHeight; i++) lines.push(this.narrowDetails ? draw(details[i], width) : (list[i] ?? cell("", width)));
+      for (let i = 0; i < contentHeight; i++) lines.push(this.narrowDetails ? cell(details[i] ?? "", width) : (list[i] ?? cell("", width)));
     }
     const status = this.error || (this.loading ? "Loading tasks... Esc to cancel" : this.helpOpen ? "Only available actions are listed." : "Saved = history only; activity in other Pi processes is unknown.");
     lines.push(cell(status, width, this.error ? COLORS.error : COLORS.dim));
-    lines.push(cell(this.helpOpen ? "Esc back   ↑/↓ scroll" : "? help   Esc back   ↑/↓ move   Enter open   F3 search   Shift+↑/↓ details", width, COLORS.dim));
+    const hints = this.renaming ? [["Enter", "save"], ["Esc", "cancel"]] : this.helpOpen ? [["Esc", "back"], ["↑/↓", "scroll"]] : [["?", "help"], ["Esc", "back"], ["↑/↓", "move"], ["Enter", "open / more"], ["F3", "search"], ...(this.options.repository.rename ? [["F2", "rename"]] : []), ["Shift+↑/↓", "reply"]];
+    lines.push(cell(hints.map(([key, action]) => paint(key!, COLORS.white) + paint(` ${action}`, COLORS.dim)).join("   "), width, COLORS.dim));
     return lines.slice(0, height).map((line) => truncateToWidth(line, width, ""));
   }
 }

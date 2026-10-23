@@ -68,7 +68,7 @@ test("搜索由F3显式开启；g和?在搜索时是文本；Esc逐级返回", a
   f.browser.handleInput("\x1b[13~");
   f.browser.handleInput("g?"); await tick();
   let screen = plain(f.browser.render(140).join("\n"));
-  assert.ok(screen.includes("Search: g?"));
+  assert.ok(screen.includes("Search › g?"));
   assert.ok(screen.includes("Group: Project"));
   assert.ok(!screen.includes("Task shortcuts"));
   f.browser.handleInput("\x1b");
@@ -103,12 +103,13 @@ test("Tab切过滤、g切分组、窄屏左右切详情；帮助可滚动", asyn
 
 test("当前会话实时刷新保留内容与详情滚动，不闪加载占位符", async () => {
   const f = fixture(undefined, Array.from({ length: 40 }, (_, i) => `Long prompt line ${i}`).join("\n"));
-  f.rows = 15;
+  f.rows = 24;
   await tick();
   f.browser.handleInput("\x1b[1;2B");
   f.browser.handleInput("\x1b[1;2B");
   const before = plain(f.browser.render(140).join("\n"));
-  assert.ok(!before.includes("Model:"), "details have scrolled below the metadata");
+  assert.ok(before.includes("Model:"), "metadata stays pinned");
+  assert.ok(before.includes("Prompt") && before.includes("Long prompt line 0"), "prompt stays pinned while reply scrolls");
   f.browser.refreshCurrent();
   assert.equal(plain(f.browser.render(140).join("\n")), before, "keep current contents while refreshing");
   await tick();

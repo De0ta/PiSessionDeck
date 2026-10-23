@@ -4,10 +4,12 @@ import {
   type ExtensionContext, type FileEntry, type SessionInfo, type SessionProjection,
 } from "@earendil-works/pi-coding-agent";
 import { mergeSessions, pathKey, safeText, type Preview, type Scope, type TaskDetails } from "./model.ts";
+import { createTitleStore, type TitleStore } from "./titles.ts";
 
 export interface SessionRepository {
   list(scope: Scope, signal: AbortSignal): Promise<SessionInfo[]>;
   preview(session: SessionInfo, signal: AbortSignal): Promise<Preview>;
+  rename?(session: SessionInfo, title: string): Promise<void>;
 }
 export const MAX_PREVIEW_BYTES = 16 * 1024 * 1024;
 
@@ -112,15 +114,33 @@ export async function readPreview(path: string, cwd: string, signal: AbortSignal
   } finally { await file.close(); }
 }
 
-export function createRepository(ctx: ExtensionContext): SessionRepository {
+export function createRepository(ctx: ExtensionContext, setCurrentName?: (name: string) => void, titles: TitleStore = createTitleStore()): SessionRepository {
+  const isCurrent = (session: SessionInfo) => pathKey(session.path) === pathKey(ctx.sessionManager.getSessionFile() ?? "");
   return {
     async list(scope, signal) {
-      if (scope === "project") return SessionManager.list(ctx.cwd, ctx.sessionManager.getSessionDir(), undefined, signal);
-      const [global, local] = await Promise.all([
+      const groups = scope === "project" ? [await SessionManager.list(ctx.cwd, ctx.sessionManager.getSessionDir(), undefined, signal)] : await Promise.all([
         SessionManager.listAll(undefined, signal),
         SessionManager.listAll(ctx.sessionManager.getSessionDir(), undefined, signal),
       ]);
-      return mergeSessions(global, local);
+      const sessions = mergeSessions(...groups);
+      // Bounded concurrency for large archives. Alias failures never hide history.
+      for (let start = 0; start < sessions.length; start += 24) {
+        signal.throwIfAborted();
+        await Promise.all(sessions.slice(start, start + 24).map(async (session) => {
+          const title = isCurrent(session) ? ctx.sessionManager.getSessionName() : await titles.read(session);
+          if (title) session.name = title;
+        }));
+      }
+      signal.throwIfAborted();
+      return sessions;
+    },
+    async rename(session, title) {
+      const clean = safeText(title).slice(0, 160);
+      if (!clean) throw new Error("Title cannot be empty");
+      if (isCurrent(session)) {
+        if (!setCurrentName) throw new Error("Current-session naming is unavailable");
+        setCurrentName(clean);
+      } else await titles.write(session, clean);
     },
     async preview(session, signal) {
       signal.throwIfAborted();

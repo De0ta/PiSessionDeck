@@ -47,7 +47,7 @@ test("宽屏双栏、中英文宽度、窄屏详情、搜索、Enter恢复", asy
 });
 
 test("当前会话默认选中；键盘和翻页沿显示顺序；Esc只关闭一次", async () => {
-  const sessions = Array.from({ length: 12 }, (_, i) => session(String(i)));
+  const sessions = Array.from({ length: 12 }, (_, i) => session(String(i), { modified: new Date(100 - i) }));
   const { browser, completed } = create(repo(sessions), sessions[2]!.path);
   await tick();
   assert.equal(browser.selected?.id, "2");

@@ -30,8 +30,12 @@ async function setup(dir: string) {
   const switches: string[] = [];
   const order: string[] = [];
   const state = { idle: true, pending: false, confirm: true, hasUI: true, mode: "tui", selection: undefined as SessionInfo | undefined, customCalls: 0, duringConfirm: () => {} };
+  const manager = SessionManager.inMemory(cwd);
+  loaded.runtime.getSessionName = () => manager.getSessionName();
+  loaded.runtime.setSessionName = (name) => { manager.appendSessionInfo(name); };
+  loaded.runtime.appendEntry = (customType, data) => { manager.appendCustomEntry(customType, data); };
   const ctx = {
-    get hasUI() { return state.hasUI; }, get mode() { return state.mode; }, cwd, sessionManager: SessionManager.inMemory(cwd),
+    get hasUI() { return state.hasUI; }, get mode() { return state.mode; }, cwd, sessionManager: manager,
     isIdle: () => state.idle, hasPendingMessages: () => state.pending,
     ui: {
       getEditorComponent: () => factory,
@@ -42,10 +46,10 @@ async function setup(dir: string) {
     },
     switchSession: async (path: string) => { order.push("switch"); switches.push(path); return { cancelled: false }; },
   } as unknown as ExtensionCommandContext; // Deliberately partial host double, not a production context cast.
-  const emit = async (event: string) => {
-    for (const handler of extension.handlers.get(event) ?? []) await handler({ type: event }, ctx);
+  const emit = async (event: string, fields: Record<string, unknown> = {}) => {
+    for (const handler of extension.handlers.get(event) ?? []) await handler({ type: event, entries: [], ...fields }, ctx);
   };
-  return { state, ctx, emit, notices, switches, order, sent, command, handlers: extension.handlers, get factory() { return factory; } };
+  return { state, ctx, manager, emit, notices, switches, order, sent, command, handlers: extension.handlers, get factory() { return factory; } };
 }
 
 test("真实Pi加载器加载入口；编辑器桥接已注册命令，保留文字与原生提交", async () => harness(async (h) => {
@@ -208,4 +212,50 @@ test("重复命令不重入；shutdown后延迟返回不会切换或覆盖其他
   pending.resolve(session("late"));
   await first;
   assert.equal(h.switches.length, 0);
+}));
+
+test("首次成功交互自动起本地标题且仅一次，不发送额外模型消息；手动标题优先", async () => harness(async (h) => {
+  h.manager.appendMessage({ role: "user", content: "修复会话浏览器。这里是后续细节", timestamp: Date.now() });
+  await h.emit("agent_before_settle", { outcome: "aborted", continue: false });
+  await h.emit("agent_settled", { aborted: true });
+  assert.equal(h.manager.getSessionName(), undefined);
+  await h.emit("agent_before_settle", { outcome: "error", continue: false });
+  await h.emit("agent_settled", { aborted: false });
+  assert.equal(h.manager.getSessionName(), undefined);
+  await h.emit("agent_before_settle", { outcome: "completed", continue: true });
+  assert.equal(h.manager.getSessionName(), undefined);
+  await h.emit("agent_before_settle", { outcome: "completed", continue: false });
+  assert.equal(h.manager.getSessionName(), undefined, "no name until all boundary edits commit");
+  await h.emit("agent_settled", { aborted: false });
+  assert.equal(h.manager.getSessionName(), "修复会话浏览器");
+  const count = h.manager.getEntries().length;
+  await h.emit("agent_before_settle", { outcome: "completed", continue: false });
+  await h.emit("agent_settled", { aborted: false });
+  assert.equal(h.manager.getEntries().length, count);
+  assert.deepEqual(h.sent, []);
+  h.manager.appendSessionInfo("User title");
+  await h.emit("agent_before_settle", { outcome: "completed", continue: false });
+  await h.emit("agent_settled", { aborted: false });
+  assert.equal(h.manager.getSessionName(), "User title");
+}));
+
+test("待提交上下文删除不泄漏到自动标题", async () => harness(async (h) => {
+  const id = h.manager.appendMessage({ role: "user", content: "secret original prompt", timestamp: Date.now() });
+  await h.emit("agent_before_settle", { outcome: "completed", continue: false, entries: [{ type: "context_edit", targetId: id, replacement: null }] });
+  assert.equal(h.manager.getSessionName(), undefined);
+  h.manager.appendContextEdit(id, null);
+  await h.emit("agent_settled", { aborted: false });
+  assert.equal(h.manager.getSessionName(), undefined);
+  assert.ok(!h.manager.getEntries().some((e) => e.type === "session_info"));
+}));
+
+test("晚于本扩展的boundary删除在自动命名前提交", async () => harness(async (h) => {
+  const id = h.manager.appendMessage({ role: "user", content: "secret first prompt", timestamp: Date.now() });
+  await h.emit("agent_before_settle", { outcome: "completed", continue: false });
+  assert.equal(h.manager.getSessionName(), undefined);
+  // Simulate a later extension returning a deletion, committed by the host.
+  h.manager.appendContextEdit(id, null);
+  await h.emit("agent_settled", { aborted: false });
+  assert.equal(h.manager.getSessionName(), undefined);
+  assert.ok(!h.manager.getEntries().some((e) => e.type === "session_info"));
 }));

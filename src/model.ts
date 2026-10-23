@@ -27,8 +27,15 @@ export function pathKey(path: string, platform = process.platform): string {
   return platform === "win32" ? trimmed.toLowerCase() : trimmed;
 }
 
+/** Extractive local title, deliberately no provider call or synthetic summary. */
+export function summarizeTitle(prompt: string): string {
+  const stripped = safeText(prompt, true).replace(/<([a-z_][\w-]*)\b[^>]*>[\s\S]*?<\/\1>/gi, "").replace(/```[\s\S]*?```/g, "");
+  const first = stripped.split(/\n|[。！？!?]/).map((line) => line.replace(/^\s*[#>*-]+\s*/, "").trim()).find(Boolean) ?? "Untitled task";
+  const characters = Array.from(first);
+  return characters.slice(0, 42).join("") + (characters.length > 42 ? "…" : "");
+}
 export function sessionTitle(session: SessionInfo): string {
-  return safeText(session.name || session.firstMessage || "Untitled task");
+  return safeText(session.name || summarizeTitle(session.firstMessage || "Untitled task"));
 }
 
 export function filterSessions(sessions: readonly SessionInfo[], query: string, scope: Scope, cwd: string): SessionInfo[] {
@@ -40,8 +47,12 @@ export function filterSessions(sessions: readonly SessionInfo[], query: string, 
   }).sort((a, b) => b.modified.getTime() - a.modified.getTime() || a.path.localeCompare(b.path));
 }
 
-export type ListRow = { kind: "project"; cwd: string } | { kind: "session"; session: SessionInfo };
-export function groupRows(sessions: readonly SessionInfo[]): ListRow[] {
+export type ListRow = { kind: "project"; cwd: string; count: number } | { kind: "session"; session: SessionInfo } | { kind: "spacer" } | { kind: "more"; cwd: string; remaining: number };
+export function rowKey(row: ListRow): string | undefined {
+  return row.kind === "session" ? row.session.path : row.kind === "more" ? `more:${pathKey(row.cwd)}` : undefined;
+}
+/** Passing limits enables project spacing and five-at-a-time disclosure. */
+export function groupRows(sessions: readonly SessionInfo[], limits?: ReadonlyMap<string, number>): ListRow[] {
   const groups = new Map<string, { cwd: string; sessions: SessionInfo[] }>();
   for (const session of sessions) {
     const key = pathKey(session.cwd);
@@ -49,10 +60,15 @@ export function groupRows(sessions: readonly SessionInfo[]): ListRow[] {
     if (!group) { group = { cwd: session.cwd, sessions: [] }; groups.set(key, group); }
     group.sessions.push(session);
   }
-  return [...groups.values()].flatMap((group): ListRow[] => [
-    { kind: "project", cwd: group.cwd },
-    ...group.sessions.map((session): ListRow => ({ kind: "session", session })),
-  ]);
+  return [...groups.values()].flatMap((group, index): ListRow[] => {
+    const limit = limits ? (limits.get(pathKey(group.cwd)) ?? 5) : group.sessions.length;
+    return [
+      ...(limits && index > 0 ? [{ kind: "spacer" } as const] : []),
+      { kind: "project", cwd: group.cwd, count: group.sessions.length },
+      ...group.sessions.slice(0, limit).map((session): ListRow => ({ kind: "session", session })),
+      ...(group.sessions.length > limit ? [{ kind: "more", cwd: group.cwd, remaining: group.sessions.length - limit } as const] : []),
+    ];
+  });
 }
 
 export function mergeSessions(...groups: readonly SessionInfo[][]): SessionInfo[] {

@@ -27,7 +27,7 @@ test("按活动时间排序、按项目分组，路径去重", () => {
   const recent = session("recent", { modified: new Date(30) });
   const sorted = filterSessions([old, other, recent], "", "all", cwd);
   assert.deepEqual(sorted.map((s) => s.id), ["recent", "other", "old"]);
-  assert.deepEqual(groupRows(sorted).map((r) => r.kind === "project" ? r.cwd : r.session.id), [cwd, "recent", "old", `${cwd}-other`, "other"]);
+  assert.deepEqual(groupRows(sorted).map((r) => r.kind === "project" ? r.cwd : r.kind === "session" ? r.session.id : r.kind), [cwd, "recent", "old", `${cwd}-other`, "other"]);
   assert.equal(mergeSessions([old], [old, recent]).length, 2);
 });
 
