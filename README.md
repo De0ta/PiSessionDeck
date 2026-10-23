@@ -2,6 +2,11 @@
 
 面向 Pi 的轻量终端历史会话浏览器，参考 Codex CLI command center 的项目列表与详情交互。**不是后台多 Agent 管理器。**
 
+A lightweight terminal session browser for Pi 1.4.x. Browse, search, preview and resume your local sessions. MIT licensed; distributed through GitHub, not npm.
+
+[![CI](https://github.com/De0ta/PiSessionViewer/actions/workflows/ci.yml/badge.svg)](https://github.com/De0ta/PiSessionViewer/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 ## 当前功能
 
 - 主编辑器完全为空时按 `←` 打开；有文字、空格、换行或自动补全时保留原生行为。
@@ -15,26 +20,30 @@
 - `?` 打开 Navigate / Tasks / View 帮助页；`F3` 显式开启搜索，搜索中输入快捷键字母不会触发动作。
 - 选择历史后进入独立转换页：同目录显示`Resume session`，跨目录显示`Working directory · resume`与Session/Current路径。仅顶部内容块深灰，下面保持终端底色且不露出聊天；Esc返回原列表，保留搜索/分组/展开/选中/详情滚动。确认后由Pi恢复；有任务、队列或草稿时拒绝切换，错误留在页内。
 
-## 试用
+## 安装 / Install
 
-要求 Node `>=22.19.0`、Pi `>=1.4.0 <1.5.0`。开发与自动化验证环境为 Windows / Node 24 / Pi 1.4.0；其他终端尚未人工实测。
-
-在本项目目录中：
+要求 Node `>=22.19.0`、Git，以及`@earendil-works/pi-coding-agent`的Pi `>=1.4.0 <1.5.0`。不承诺旧版`@mariozechner/*`或其他Pi分支兼容。
 
 ```sh
-npm ci
-pi -e .
+pi install git:github.com/De0ta/PiSessionViewer@v1.0.0
 ```
 
-仅本次启动加载，不修改你的全局扩展设置。进入 Pi 后使用 `/session-browser` 或在空输入框按 `←`。
+重启Pi后使用`/session-browser`，或在完全空白的输入框按`←`。Pi负责克隆和加载TypeScript，不需要手动编译或复制文件，也不需要额外配置本插件的API密钥。
 
-需要长期使用时，执行以下命令并重启 Pi：
+默认安装到个人配置，跨项目恢复后仍能加载。不建议使用`--local`进行项目级安装，否则切换项目后插件可能不再启用。已有本地开发版时，请先用`pi list`检查并移除旧来源，避免同时加载两份。
 
-```sh
-pi install .
-```
+固定版本不会随`pi update --extensions`自动跳到下一个标签；升级时移除旧来源再安装新标签。安装、升级、卸载和源码试用见[安装指南](docs/install.md)。本项目未发布npm包，不要使用`npm install -g pi-session-viewer`。
 
-本地包安装请保留源码目录。建议全局安装，以便跨项目恢复后仍能加载；项目级安装可能在切换到其他项目后不再可用。
+### 平台与验证边界
+
+| 环境 | 验证情况 |
+| --- | --- |
+| Windows / Node 24 / Pi 1.4.0 | 本地自动化与独立加载验证通过；真实终端端到端未纳入自动化 |
+| Windows + Ubuntu / Node 22.19、24 | 已配置CI，首轮结果待运行 |
+| Linux真实终端 / SSH / tmux | 未人工验收；自动化通过也不等于这些交互环境全部验证 |
+| macOS、其他Pi版本 | 未验证 |
+
+Linux按原生POSIX路径处理，无Windows专用运行依赖；请使用Linux自身的Node/Pi与会话目录，不要直接恢复包含Windows项目路径的会话。
 
 ## 快捷键
 
@@ -76,13 +85,20 @@ pi install .
 ## 开发与验证
 
 ```sh
+npm ci
 npm run check
 npm test
+npm run smoke:package
+pi -e .
 ```
+
+最后一条命令仅在本次启动试用源码；安装后不要再同时用`-e .`加载第二份。`smoke:package`会在临时目录打包/解包，通过真实Pi加载器验证发布源码，在包内无依赖目录的情况下注册命令；不附着终端、不请求模型、不恢复真实历史、不改变全局安装。
 
 测试使用临时目录和合成会话，无真实模型请求；包含 Pi 真实扩展加载器与受控宿主替身。**尚未在真实交互终端中验收，也未自动安装到用户 Pi。**
 
-- [工作流与当前进度](workflow/README.md)
+- [安装、更新与卸载](docs/install.md)
+- [版本记录](CHANGELOG.md)
+- [工作流与当前进度](https://github.com/De0ta/PiSessionViewer/blob/main/workflow/README.md)
 - [v0.6 独立恢复转换页](docs/resume-v0.6.md)
 - [v0.5 四种会话分组](docs/groups-v0.5.md)
 - [v0.4 模型标题与交互](docs/model-titles-v0.4.md)
@@ -92,4 +108,4 @@ npm test
 - [开源方案调研](docs/open-source-survey.md)
 - [空输入左键分析](docs/empty-left-entry.md)
 
-仓库为私有项目；截图、真实会话、凭据、`.pi/` 与 `node_modules/` 不纳入版本控制。未发布 npm 包。
+MIT许可证见[LICENSE](LICENSE)。截图、真实会话、凭据、用户配置和依赖目录不纳入版本控制或发布包。仅在GitHub发布；包元数据保留`private: true`以防误发npm，不影响Git来源安装。

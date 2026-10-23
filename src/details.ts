@@ -71,10 +71,10 @@ export function detailLines(o: DetailLayout): { lines: string[]; maxOffset: numb
   if (height < 1) return { lines: [], maxOffset: 0 };
   const wrap = (text: string) => wrapTextWithAnsi(safeText(text, true), Math.max(1, width));
   const title = limitLines(wrap(sessionTitle(session)).map((line) => paint(line, sessionColor(session.id), true)), Math.min(3, Math.max(1, height - 15)), width, paint);
-  const model = preview.details?.model ?? "Unknown";
+  const model = safeText(preview.details?.model ?? "Unknown");
   const slash = model.indexOf("/");
   const modelLine = paint("Model: ", COLORS.dim) + (slash < 0 ? paint(model, COLORS.blue) : paint(model.slice(0, slash), COLORS.provider) + paint("/", COLORS.dim) + paint(model.slice(slash + 1), COLORS.blue));
-  const level = preview.details?.reasoning ?? "Not recorded";
+  const level = safeText(preview.details?.reasoning ?? "Not recorded");
   const circle = o.status === "Working" ? COLORS.blue : o.status === "Completed" ? COLORS.green : COLORS.dim;
   let meta = ["", ...title, paint("○ ", circle) + paint(o.status, COLORS.text) + (o.current ? paint(" · Current", COLORS.dim) : ""), "", modelLine,
     paint("Reasoning: ", COLORS.dim) + paint(level, reasoningColor(level)), "",

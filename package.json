@@ -1,10 +1,14 @@
 {
   "name": "pi-session-viewer",
-  "version": "0.6.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "description": "Lightweight session browser extension for Pi",
-  "license": "UNLICENSED",
+  "license": "MIT",
+  "homepage": "https://github.com/De0ta/PiSessionViewer#readme",
+  "bugs": {
+    "url": "https://github.com/De0ta/PiSessionViewer/issues"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/De0ta/PiSessionViewer.git"
@@ -19,14 +23,19 @@
   },
   "files": [
     "src",
-    "README.md"
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "docs/install.md"
   ],
   "engines": {
     "node": ">=22.19.0"
   },
   "scripts": {
     "check": "tsc --noEmit",
-    "test": "tsx --test test/*.test.ts"
+    "test": "tsx --test test/*.test.ts",
+    "smoke:package": "node scripts/smoke-package.mjs",
+    "smoke:install": "node scripts/smoke-install.mjs"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": ">=1.4.0 <1.5.0",

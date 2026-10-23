@@ -167,6 +167,21 @@ test("窄屏软换行后标题、引用和代码块地址的所有续行仍蓝�
   }
 });
 
+test("历史模型和推理元数据不允许注入OSC剪贴板/标题、清屏或定位控制序列", () => {
+  const osc = "\x1b]52;c;U0VDUkVU\x07";
+  const title = "\x1b]0;INJECTED_TITLE\x1b\\";
+  const clear = "\x1b[2J\x1b[H";
+  const result = detailLines({ session: session("a"), preview: { messages: [], details: {
+    model: `${osc}provider${title}/model${clear}`, reasoning: `${osc}high${clear}${title}`,
+  } }, status: "Saved", current: false, width: 100, height: 45, offset: 0, paint });
+  const rendered = result.lines.join("\n");
+  for (const sequence of [osc, title, clear, "U0VDUkVU", "INJECTED_TITLE"]) assert.ok(!rendered.includes(sequence), sequence);
+  const text = stripVTControlCharacters(rendered);
+  assert.match(text, /Model: provider\/model/); assert.match(text, /Reasoning: high/);
+  assertColor(result.lines.find((s) => stripVTControlCharacters(s).includes("Model:"))!, "provider", COLORS.provider);
+  assertColor(result.lines.find((s) => stripVTControlCharacters(s).includes("Reasoning:"))!, "high", "#d8a0b5");
+});
+
 test("右栏标题前留空行，状态前有独立着色圆圈，Reasoning与分行Project隔开", () => {
   const result = detailLines({ session: session("a", { name: "A task" }), preview: { messages: [], details: { lastMessage: "Reply", prompt: "Question", reasoning: "high" } },
     status: "Completed", current: false, width: 80, height: 30, offset: 0, paint });

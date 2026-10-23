@@ -32,7 +32,7 @@ export function pathKey(path: string, platform = process.platform): string {
   const api = platform === "win32" ? win32 : posix;
   const normalized = api.resolve(path);
   const root = api.parse(normalized).root;
-  const trimmed = normalized.length > root.length ? normalized.replace(/[\\/]+$/, "") : normalized;
+  const trimmed = normalized.length > root.length ? normalized.replace(platform === "win32" ? /[\\/]+$/ : /\/+$/, "") : normalized;
   return platform === "win32" ? trimmed.toLowerCase() : trimmed;
 }
 

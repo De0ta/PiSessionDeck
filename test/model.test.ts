@@ -37,6 +37,11 @@ test("Windows 路径大小写/分隔符；POSIX 保留大小写；根目录不�
   assert.equal(pathKey("/", "linux"), "/");
   assert.notEqual(pathKey("/A", "linux"), pathKey("/a", "linux"));
   assert.equal(pathKey("", "win32"), "");
+  for (const platform of ["linux", "darwin"] as const) {
+    assert.notEqual(pathKey("/tmp/project", platform), pathKey("/tmp/project\\", platform));
+    assert.equal(pathKey("/tmp/project\\/", platform), "/tmp/project\\");
+    assert.equal(pathKey("/tmp/project///", platform), "/tmp/project");
+  }
 });
 
 test("显示数据清除终端逃逸、控制符和多行标题", () => {
