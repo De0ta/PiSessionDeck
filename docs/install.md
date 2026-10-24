@@ -7,14 +7,14 @@
 - 已安装 `@earendil-works/pi-coding-agent` **1.4.x**，且 `pi --version` 能正常运行。
 - Windows 或 Linux；自动化检查覆盖 Windows/Ubuntu × Node 22.19/24。
 
-Pi Session Viewer 是 Pi 扩展，通过 GitHub 分发，无需构建或在插件目录手动执行 `npm install`。
+PiSessionDeck 是 Pi 扩展，通过 GitHub 分发，无需构建或在插件目录手动执行 `npm install`。
 
 ## 安装
 
 安装 v1.0.1：
 
 ```sh
-pi install git:github.com/De0ta/PiSessionViewer@v1.0.1
+pi install git:github.com/De0ta/PiSessionDeck@v1.0.1
 ```
 
 默认安装到个人代理配置，跨项目可用；仅需当前项目使用时可加 `--local`。重启 Pi 后输入 `/session-browser`，或在完全空白的输入框按 `←`。
@@ -40,25 +40,25 @@ pi install git:github.com/De0ta/PiSessionViewer@v1.0.1
 
 分叉保留有效分支和末次回复，不改写源会话、不继承置顶。历史快照上限为 16 MiB；创建后打开失败时文件保留，可重试或刷新列表后打开。
 
-删除没有回收站，默认选中 `Cancel`；数字只选择，`Enter` 才确认。操作会复核路径、会话 ID/cwd 和 revision，头部读取上限为 1 MiB。删除仅作用于所选会话文件，保留项目和关联 Fork。请先关闭其他写入该会话的实例：插件不停止其他进程，也不提供跨进程锁。详见[会话管理参考](https://github.com/De0ta/PiSessionViewer/blob/main/docs/management.md)。
+删除没有回收站，默认选中 `Cancel`；数字只选择，`Enter` 才确认。操作会复核路径、会话 ID/cwd 和 revision，头部读取上限为 1 MiB。删除仅作用于所选会话文件，保留项目和关联 Fork。请先关闭其他写入该会话的实例：插件不停止其他进程，也不提供跨进程锁。详见[会话管理参考](https://github.com/De0ta/PiSessionDeck/blob/main/docs/management.md)。
 
 ## 更新
 
 固定标签或提交的安装不会自动追踪新版本。用 `pi list` 查看当前来源，移除旧来源后安装新版本，再重启 Pi。例如，从 v1.0.0 升级到 v1.0.1：
 
 ```sh
-pi remove git:github.com/De0ta/PiSessionViewer@v1.0.0
-pi install git:github.com/De0ta/PiSessionViewer@v1.0.1
+pi remove git:github.com/De0ta/PiSessionDeck@v1.0.0
+pi install git:github.com/De0ta/PiSessionDeck@v1.0.1
 ```
 
-若安装的是提交版本，移除时使用 `pi list` 中对应的来源。保持单一安装来源，避免同时加载安装版和 `pi -e .`。无标签的 `main` 来源会跟随开发分支。
+移除命令应使用 `pi list` 中记录的实际来源，包括提交版本和使用旧仓库名 PiSessionViewer 的安装；GitHub 的地址重定向不会自动修改本地来源声明。保持单一安装来源，避免同时加载安装版和 `pi -e .`。无标签的 `main` 来源会跟随开发分支。
 
 ## 卸载
 
 按 `pi list` 中的来源移除，例如：
 
 ```sh
-pi remove git:github.com/De0ta/PiSessionViewer@v1.0.1
+pi remove git:github.com/De0ta/PiSessionDeck@v1.0.1
 ```
 
 重启 Pi。会话历史保留；手动标题缓存和置顶元数据位于代理配置下的 `pi-session-viewer` 目录，不再需要时可单独清理。
@@ -75,7 +75,7 @@ pi remove git:github.com/De0ta/PiSessionViewer@v1.0.1
 
 - Windows / Node 24：`npm run check` 通过；165 项测试，164 通过，1 项因符号链接权限跳过。
 - 打包检查通过，共 20 个文件；Git 安装检查成功加载 1.0.1。
-- Windows/Ubuntu × Node 22.19/24 四组 CI 检查通过。版本对应的执行记录与安装包见 [GitHub Release](https://github.com/De0ta/PiSessionViewer/releases/tag/v1.0.1)。
+- Windows/Ubuntu × Node 22.19/24 四组 CI 检查通过。版本对应的执行记录与安装包见 [GitHub Release](https://github.com/De0ta/PiSessionDeck/releases/tag/v1.0.1)。
 
 ## 故障排查
 

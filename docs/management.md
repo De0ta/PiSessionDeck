@@ -1,6 +1,6 @@
 # 会话管理参考（v1.0.1）
 
-Pi Session Viewer 为本机会话提供新建、分叉、置顶、永久删除和操作菜单。支持 Pi 1.4.x 与 Node.js >=22.19.0；安装方式见[安装指南](install.md)。
+PiSessionDeck 为本机会话提供新建、分叉、置顶、永久删除和操作菜单。支持 Pi 1.4.x 与 Node.js >=22.19.0；安装方式见[安装指南](install.md)。
 
 ## 新建与未落盘会话
 
@@ -47,4 +47,4 @@ Pi Session Viewer 为本机会话提供新建、分叉、置顶、永久删除�
 - Windows / Node 24：`npm run check` 通过；165 项测试，164 通过、0 失败、1 项因符号链接权限跳过。
 - `npm run smoke:package` 通过，包内共 20 个文件，扩展加载器成功注册 `/session-browser`。
 - Git 安装检查通过，加载版本为 1.0.1。
-- Windows/Ubuntu × Node 22.19/24 四组 CI 检查通过。版本对应的执行记录见 [GitHub Release](https://github.com/De0ta/PiSessionViewer/releases/tag/v1.0.1)。
+- Windows/Ubuntu × Node 22.19/24 四组 CI 检查通过。版本对应的执行记录见 [GitHub Release](https://github.com/De0ta/PiSessionDeck/releases/tag/v1.0.1)。

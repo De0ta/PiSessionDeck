@@ -6,7 +6,7 @@
 
 用户确认先实现 Windows 友好的轻量版。采用 Pi 1.4.0 公开 API 自研，不安装或移植 `sidstack/pi-codex-agents`，不引入 Linux host、私有 UI 访问或跨进程控制。现有开源调研仍保留为后续完整后台方案参考。
 
-私有仓库：<https://github.com/De0ta/PiSessionViewer>。源码、测试和文档入库；`pics/`、真实会话、凭据、`.pi/` 与依赖目录排除。
+私有仓库：<https://github.com/De0ta/PiSessionDeck>。源码、测试和文档入库；`pics/`、真实会话、凭据、`.pi/` 与依赖目录排除。
 
 ## 模块与调用链
 

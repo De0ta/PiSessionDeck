@@ -5,13 +5,13 @@
   "type": "module",
   "description": "Keyboard-first session browsing and management for Pi",
   "license": "MIT",
-  "homepage": "https://github.com/De0ta/PiSessionViewer#readme",
+  "homepage": "https://github.com/De0ta/PiSessionDeck#readme",
   "bugs": {
-    "url": "https://github.com/De0ta/PiSessionViewer/issues"
+    "url": "https://github.com/De0ta/PiSessionDeck/issues"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/De0ta/PiSessionViewer.git"
+    "url": "https://github.com/De0ta/PiSessionDeck.git"
   },
   "keywords": [
     "pi-package"

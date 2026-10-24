@@ -4,8 +4,8 @@
 
 **面向 Pi 的键盘优先会话浏览器。在终端中定位历史对话、预览上下文，并回到原项目继续工作。**
 
-[![CI](https://github.com/De0ta/PiSessionViewer/actions/workflows/ci.yml/badge.svg)](https://github.com/De0ta/PiSessionViewer/actions/workflows/ci.yml)
-[![GitHub release](https://img.shields.io/github/v/release/De0ta/PiSessionViewer)](https://github.com/De0ta/PiSessionViewer/releases)
+[![CI](https://github.com/De0ta/PiSessionDeck/actions/workflows/ci.yml/badge.svg)](https://github.com/De0ta/PiSessionDeck/actions/workflows/ci.yml)
+[![GitHub release](https://img.shields.io/github/v/release/De0ta/PiSessionDeck)](https://github.com/De0ta/PiSessionDeck/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 PiSessionDeck 在 Pi 内提供全屏、面向项目的本地会话视图。无需离开终端，即可搜索历史、查看最近一轮问答，并恢复目标会话。
@@ -32,7 +32,7 @@ PiSessionDeck 在 Pi 内提供全屏、面向项目的本地会话视图。无�
 要求 **Node.js 22.19.0+**、**Git**，以及 `@earendil-works/pi-coding-agent` 提供的 **Pi 1.4.x**。
 
 ```sh
-pi install git:github.com/De0ta/PiSessionViewer@v1.0.1
+pi install git:github.com/De0ta/PiSessionDeck@v1.0.1
 ```
 
 重启 Pi，然后输入：
@@ -47,7 +47,7 @@ Pi 直接加载 TypeScript 扩展，无需编译、手动复制文件或单独�
 
 默认安装到个人配置，以便跨项目切换后继续使用。除非明确需要项目级安装，否则不要添加 `--local`。不要同时加载已安装副本和 `pi -e .` 开发副本。
 
-**分发方式：** 正式版通过 GitHub 标签安装。固定标签不会因 `pi update --extensions` 自动升级到新版本；升级时应移除旧来源，再安装新的已发布标签。详见[安装、更新与卸载指南](https://github.com/De0ta/PiSessionViewer/blob/main/docs/install.md)。
+**分发方式：** 正式版通过 GitHub 标签安装。固定标签不会因 `pi update --extensions` 自动升级到新版本；升级时应移除旧来源，再安装新的已发布标签。详见[安装、更新与卸载指南](https://github.com/De0ta/PiSessionDeck/blob/main/docs/install.md)。
 
 ## 快速开始
 
@@ -111,7 +111,7 @@ Pi 直接加载 TypeScript 扩展，无需编译、手动复制文件或单独�
 
 删除默认选中 **Cancel**。数字键仅改变选择，只有 `Enter` 提交。删除只影响单个会话文件，不删除项目或分叉，也不停止其他进程。置顶与历史标题别名独立于会话历史存储。
 
-文件格式、存储限制和操作细节见[会话管理专题](https://github.com/De0ta/PiSessionViewer/blob/main/docs/management.md)。
+文件格式、存储限制和操作细节见[会话管理专题](https://github.com/De0ta/PiSessionDeck/blob/main/docs/management.md)。
 
 ## 快捷键
 
@@ -167,12 +167,12 @@ Pi 直接加载 TypeScript 扩展，无需编译、手动复制文件或单独�
 | 本地回归测试 | Windows / Node 24：164 项通过，1 项符号链接测试因账号权限跳过。 |
 | 打包与安装检查 | 类型检查、隔离 Pi 扩展加载、Git 安装。 |
 
-Linux 使用原生 POSIX 路径。请使用运行 Pi 的环境所对应的项目路径；Windows 路径不会自动转换为 Linux 或 WSL 路径。各版本执行结果见 [GitHub Releases](https://github.com/De0ta/PiSessionViewer/releases)。
+Linux 使用原生 POSIX 路径。请使用运行 Pi 的环境所对应的项目路径；Windows 路径不会自动转换为 Linux 或 WSL 路径。各版本执行结果见 [GitHub Releases](https://github.com/De0ta/PiSessionDeck/releases)。
 
 ## 开发
 
 ```sh
-git clone https://github.com/De0ta/PiSessionViewer.git PiSessionDeck
+git clone https://github.com/De0ta/PiSessionDeck.git PiSessionDeck
 cd PiSessionDeck
 npm ci
 npm run check
@@ -191,11 +191,11 @@ npm run smoke:install -- --public --ref v1.0.1
 
 ## 文档与支持
 
-- [安装、更新、卸载与故障排查](https://github.com/De0ta/PiSessionViewer/blob/main/docs/install.md)
-- [会话管理与存储细节](https://github.com/De0ta/PiSessionViewer/blob/main/docs/management.md)
+- [安装、更新、卸载与故障排查](https://github.com/De0ta/PiSessionDeck/blob/main/docs/install.md)
+- [会话管理与存储细节](https://github.com/De0ta/PiSessionDeck/blob/main/docs/management.md)
 - [版本记录](CHANGELOG.md)
-- [技术文档与设计记录](https://github.com/De0ta/PiSessionViewer/tree/main/docs)
-- [提交问题](https://github.com/De0ta/PiSessionViewer/issues)
+- [技术文档与设计记录](https://github.com/De0ta/PiSessionDeck/tree/main/docs)
+- [提交问题](https://github.com/De0ta/PiSessionDeck/issues)
 
 报告问题时，请提供操作系统、终端、Node/Pi 版本与复现步骤。截图和日志应先脱敏，不要附上凭据或完整私人会话。
 

@@ -7,7 +7,7 @@
 - Session management: `n` creates a session in the current cwd without a prompt; `f` forks the current saved session natively or creates a snapshot of historical v1/2/3 sessions before switching. Forks preserve the effective branch, reference closure and latest reply, receive a ` · Fork` suffix, and do not inherit pins. Source files remain unchanged. Created files remain available for retry if opening fails.
 - `p` toggles a separate Pinned section in all four grouping modes, with filtering first, no duplicate entries, newest pins first and five-at-a-time expansion. Pin metadata uses independent SHA-256 records and atomic writes in the agent directory.
 - `Delete` permanently removes one non-current session after confirmation, defaulting to Cancel. Path, session ID/cwd and revision are rechecked. There is no recycle bin; projects and dependent forks are retained. Close other writers first: deletion does not stop processes or provide cross-process locking.
-- `a` opens the action menu while preserving input-mode text and existing `r` / `d` shortcuts. Unsaved sessions remain visible but cannot be pinned or forked; the current session cannot be deleted. Historical forks are limited to 16 MiB and deletion headers to 1 MiB; unsupported or invalid formats are rejected. See the [session management reference](https://github.com/De0ta/PiSessionViewer/blob/main/docs/management.md).
+- `a` opens the action menu while preserving input-mode text and existing `r` / `d` shortcuts. Unsaved sessions remain visible but cannot be pinned or forked; the current session cannot be deleted. Historical forks are limited to 16 MiB and deletion headers to 1 MiB; unsupported or invalid formats are rejected. See the [session management reference](https://github.com/De0ta/PiSessionDeck/blob/main/docs/management.md).
 
 ### Fixed
 
@@ -22,7 +22,7 @@
 
 - Windows / Node 24: type checks passed; 165 tests, 164 passed and 1 skipped because the account lacked symlink permissions.
 - Package smoke passed with 20 packed files; Git installation loaded version 1.0.1 successfully.
-- All four Windows/Ubuntu × Node 22.19/24 CI jobs passed. Release-specific records are linked from the [v1.0.1 release](https://github.com/De0ta/PiSessionViewer/releases/tag/v1.0.1).
+- All four Windows/Ubuntu × Node 22.19/24 CI jobs passed. Release-specific records are linked from the [v1.0.1 release](https://github.com/De0ta/PiSessionDeck/releases/tag/v1.0.1).
 
 ## 1.0.0 — 2026-10-23
 

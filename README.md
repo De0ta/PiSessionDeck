@@ -4,8 +4,8 @@
 
 **A keyboard-first session browser for Pi. Find the right conversation, inspect its context, and resume work in its original project.**
 
-[![CI](https://github.com/De0ta/PiSessionViewer/actions/workflows/ci.yml/badge.svg)](https://github.com/De0ta/PiSessionViewer/actions/workflows/ci.yml)
-[![GitHub release](https://img.shields.io/github/v/release/De0ta/PiSessionViewer)](https://github.com/De0ta/PiSessionViewer/releases)
+[![CI](https://github.com/De0ta/PiSessionDeck/actions/workflows/ci.yml/badge.svg)](https://github.com/De0ta/PiSessionDeck/actions/workflows/ci.yml)
+[![GitHub release](https://img.shields.io/github/v/release/De0ta/PiSessionDeck)](https://github.com/De0ta/PiSessionDeck/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 PiSessionDeck brings a full-screen, project-oriented view of your local Pi conversations into the terminal. Search across sessions, preview the latest exchange, and return to a conversation without leaving Pi.
@@ -32,7 +32,7 @@ PiSessionDeck brings a full-screen, project-oriented view of your local Pi conve
 Requires **Node.js 22.19.0+**, **Git**, and **Pi 1.4.x** from `@earendil-works/pi-coding-agent`.
 
 ```sh
-pi install git:github.com/De0ta/PiSessionViewer@v1.0.1
+pi install git:github.com/De0ta/PiSessionDeck@v1.0.1
 ```
 
 Restart Pi, then run:
@@ -47,7 +47,7 @@ Pi loads the TypeScript extension directly: no build step, manual file copying, 
 
 The default personal installation keeps the extension available when changing projects. Avoid `--local` unless you specifically want a project-scoped installation. Do not load an installed copy and `pi -e .` at the same time.
 
-**Distribution:** the stable release is available through GitHub, not npm. A pinned tag does not advance to a new release with `pi update --extensions`; remove the old source and install the new published tag when upgrading. See the [installation, update, and removal guide](https://github.com/De0ta/PiSessionViewer/blob/main/docs/install.md).
+**Distribution:** the stable release is available through GitHub, not npm. A pinned tag does not advance to a new release with `pi update --extensions`; remove the old source and install the new published tag when upgrading. See the [installation, update, and removal guide](https://github.com/De0ta/PiSessionDeck/blob/main/docs/install.md).
 
 ## Quick start
 
@@ -111,7 +111,7 @@ Forks receive an independent identity and a ` · Fork` title suffix; they do not
 
 Deletion defaults to **Cancel**. Number keys change the selection; only `Enter` submits. Deletion affects one session file, not its project, forks, or other running processes. Pins and historical title aliases are stored separately from session history.
 
-For file formats, storage limits, and operation details, see [Session management](https://github.com/De0ta/PiSessionViewer/blob/main/docs/management.md).
+For file formats, storage limits, and operation details, see [Session management](https://github.com/De0ta/PiSessionDeck/blob/main/docs/management.md).
 
 ## Keyboard reference
 
@@ -167,12 +167,12 @@ PiSessionDeck targets **Pi 1.4.x** and **Node.js 22.19.0+**.
 | Local regression suite | Windows / Node 24: 164 tests passed; one symlink test skipped because of account permissions. |
 | Package and installation checks | Type checking, isolated Pi extension loading, and Git installation. |
 
-Linux uses native POSIX paths. Use the project path for the environment running Pi; Windows paths are not automatically translated to Linux or WSL paths. Release-specific results are linked from the [GitHub releases](https://github.com/De0ta/PiSessionViewer/releases).
+Linux uses native POSIX paths. Use the project path for the environment running Pi; Windows paths are not automatically translated to Linux or WSL paths. Release-specific results are linked from the [GitHub releases](https://github.com/De0ta/PiSessionDeck/releases).
 
 ## Development
 
 ```sh
-git clone https://github.com/De0ta/PiSessionViewer.git PiSessionDeck
+git clone https://github.com/De0ta/PiSessionDeck.git PiSessionDeck
 cd PiSessionDeck
 npm ci
 npm run check
@@ -191,11 +191,11 @@ npm run smoke:install -- --public --ref v1.0.1
 
 ## Documentation and support
 
-- [Installation, updates, removal, and troubleshooting](https://github.com/De0ta/PiSessionViewer/blob/main/docs/install.md)
-- [Session management and storage details](https://github.com/De0ta/PiSessionViewer/blob/main/docs/management.md)
+- [Installation, updates, removal, and troubleshooting](https://github.com/De0ta/PiSessionDeck/blob/main/docs/install.md)
+- [Session management and storage details](https://github.com/De0ta/PiSessionDeck/blob/main/docs/management.md)
 - [Changelog](CHANGELOG.md)
-- [Technical documentation and design records](https://github.com/De0ta/PiSessionViewer/tree/main/docs)
-- [Report an issue](https://github.com/De0ta/PiSessionViewer/issues)
+- [Technical documentation and design records](https://github.com/De0ta/PiSessionDeck/tree/main/docs)
+- [Report an issue](https://github.com/De0ta/PiSessionDeck/issues)
 
 When reporting a problem, include your OS, terminal, Node/Pi versions, and reproduction steps. Redact screenshots and logs; do not attach credentials or full private session files.
 

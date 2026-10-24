@@ -18,7 +18,7 @@ const env = { ...process.env,
   PI_OFFLINE: "1", PI_SKIP_VERSION_CHECK: "1", PI_TELEMETRY: "0", CI: "true",
   GIT_TERMINAL_PROMPT: "0", GIT_CONFIG_COUNT: "2",
   GIT_CONFIG_KEY_0: `url.${pathToFileURL(project).href}.insteadOf`,
-  GIT_CONFIG_VALUE_0: "https://github.com/De0ta/PiSessionViewer.git",
+  GIT_CONFIG_VALUE_0: "https://github.com/De0ta/PiSessionDeck.git",
   GIT_CONFIG_KEY_1: "protocol.file.allow", GIT_CONFIG_VALUE_1: "always",
   npm_config_ignore_scripts: "true", npm_config_audit: "false", npm_config_fund: "false",
   npm_config_update_notifier: "false", npm_config_offline: "true",
@@ -47,8 +47,8 @@ try {
   if (publicMode) await writeFile(env.GIT_CONFIG_GLOBAL, "");
   const sha = run("git", ["rev-parse", "--verify", `${requestedRef ?? "HEAD"}^{commit}`], project);
   const ref = requestedRef ?? sha;
-  const source = publicMode ? `git:github.com/De0ta/PiSessionViewer@${ref}`
-    : `git:https://github.com/De0ta/PiSessionViewer.git@${ref}`;
+  const source = publicMode ? `git:github.com/De0ta/PiSessionDeck@${ref}`
+    : `git:https://github.com/De0ta/PiSessionDeck.git@${ref}`;
   const hostEntry = import.meta.resolve("@earendil-works/pi-coding-agent");
   const cli = resolve(dirname(fileURLToPath(hostEntry)), "bundle", "cli.js");
   // Real CLI/package manager. Default transport is local; --public requires anonymous GitHub access.
