@@ -19,9 +19,9 @@ try {
   const [pack] = JSON.parse(run(process.execPath, [process.env.npm_execpath, "pack", "--ignore-scripts", "--json", "--pack-destination", root], project));
   assert.ok(pack.files.length > 0);
   for (const { path } of pack.files) {
-    assert.ok(/^(?:src\/[^/]+\.ts|README\.md|LICENSE|CHANGELOG\.md|package\.json|docs\/install\.md)$/.test(path), `Unexpected packed file: ${path}`);
+    assert.ok(/^(?:src\/[^/]+\.ts|README(?:\.zh-CN)?\.md|LICENSE|CHANGELOG\.md|package\.json|docs\/install\.md)$/.test(path), `Unexpected packed file: ${path}`);
   }
-  for (const required of ["LICENSE", "README.md", "CHANGELOG.md", "docs/install.md", "src/index.ts", "src/resume.ts"]) {
+  for (const required of ["LICENSE", "README.md", "README.zh-CN.md", "CHANGELOG.md", "docs/install.md", "src/index.ts", "src/resume.ts"]) {
     assert.ok(pack.files.some((file) => file.path === required), `Missing ${required}`);
   }
   // Both supported CI operating systems provide tar. Use relative paths so

@@ -1,132 +1,176 @@
 # PiSessionViewer
 
-面向 Pi 的轻量终端历史会话浏览器，参考 Codex CLI command center 的项目列表与详情交互。**不是后台多 Agent 管理器。**
+**English** | [简体中文](README.zh-CN.md)
 
-A lightweight terminal session browser for Pi 1.4.x. Browse, search, preview and resume your local sessions. MIT licensed; distributed through GitHub, not npm.
+**A keyboard-first session browser for Pi. Find the right conversation, inspect its context, and resume work in its original project.**
 
 [![CI](https://github.com/De0ta/PiSessionViewer/actions/workflows/ci.yml/badge.svg)](https://github.com/De0ta/PiSessionViewer/actions/workflows/ci.yml)
+[![GitHub release](https://img.shields.io/github/v/release/De0ta/PiSessionViewer)](https://github.com/De0ta/PiSessionViewer/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-## 当前功能
+PiSessionViewer brings a full-screen, project-oriented view of your local Pi conversations into the terminal. Search across sessions, preview the latest exchange, and return to a conversation without leaving Pi.
 
-- 主编辑器完全为空时按 `←` 打开；有文字、空格、换行或自动补全时保留原生行为。
-- `/session-browser` 命令入口；已有其他自定义编辑器时不覆盖它，改用命令。
-- 真正覆盖终端可视区的深色页面；退出恢复聊天与草稿，不把浏览器插入聊天流。
-- 默认全部项目，支持当前项目过滤；`g`循环切换项目 / 最近活动 / 模型 / 状态分组。Recent按5小时、1天、1周、1个月、3个月划为六档；Model按供应商与模型ID聚合，Status按状态聚合。各组间留空行，默认5条，`Show more`每次展开5条；会话身份色稳定，选中行蓝底。
-- 搜索标题、项目路径、会话 ID 和消息文本；多个关键词采用 AND 匹配。
-- 搜索条默认隐藏，`F3` 搜索时显示灰底蓝字输入栏；宽屏 Tasks + Task details，详情标题最多3行，模型/供应商/推理分色；末次回复及其对应提问使用 Pi 原生 Markdown 渲染，Prompt 中链接和本地路径呈蓝色，超长灰色省略，Prompt 至少保留2行。
-- 首次成功交互后，后台通过当前模型理解首轮问答拟写标题；先保存本地提炼标题，模型失败/超时则保留它，不覆盖已有名称或生成期间的手动命名。`r` 编辑选中标题。历史会话使用独立别名，恢复为当前会话后才写入原生名称。
-- `Status`列标题灰色，各会话状态文字为柔和灰白色，所有按键名纯白；右栏标题前留空行、状态前加圈，Reasoning与Project隔行、路径另起一行。
-- `?` 打开 Navigate / Tasks / View 帮助页；`F3` 显式开启搜索，搜索中输入快捷键字母不会触发动作。
-- 选择历史后进入独立转换页：同目录显示`Resume session`，跨目录显示`Working directory · resume`与Session/Current路径。仅顶部内容块深灰，下面保持终端底色且不露出聊天；Esc返回原列表，保留搜索/分组/展开/选中/详情滚动。确认后由Pi恢复；有任务、队列或草稿时拒绝切换，错误留在页内。
+## Why PiSessionViewer
 
-## 会话管理增强（Unreleased）
+- **Find conversations across projects.** Group sessions by project, recent activity, model, or status. Search titles, project paths, session IDs, and message text; multiple terms use AND matching.
+- **Preview before switching.** A split-pane layout shows session metadata, the latest reply, and its corresponding prompt, with native Pi Markdown rendering. Narrow terminals use a dedicated details view.
+- **Stay on the keyboard.** Open from an empty editor with `←`, or use `/session-browser`. Search, navigation, renaming, and help have dedicated controls.
+- **Keep titles useful.** New, unnamed conversations receive a local fallback title and can receive a model-generated title after the first successful exchange. Manual names take precedence.
+- **Resume deliberately.** A separate confirmation page identifies the destination project. Drafts, running tasks, and queued work block session switches rather than being silently discarded.
+- **Keep browsing local.** Browsing, searching, and previews do not call a model or modify session history. Automatic naming is the only model-backed feature; see [Privacy and safety](#privacy-and-safety).
 
-已实现并通过类型检查、165项自动化中的164项（Windows符号链接权限导致1项跳过）、工作树打包加载验证和独立审查修复复核；真实终端与完整宿主切换待人工验收。下列能力尚未发布，不属于已发布的 v1.0.0。详见[管理边界与隔离验收表](docs/management.md)。
+This is a local session browser, not a background agent orchestrator or a live dashboard for other Pi processes.
 
-- `n`：在当前 cwd 新建会话，不自动发送 prompt；未落盘当前行显示 `Unsaved`，不能删除当前会话，也不能 pin / fork。
-- `f`：当前会话走原生 `ctx.fork(leaf, { position: 'at' })`；历史会话只读严格快照 v1/2/3，复制有效分支、引用闭包及 latest reply 到新文件，再切换，不先恢复源。新标题追加 ` · Fork`，不继承 pins；已创建但未打开的 Fork 保留，可刷新发现或重试打开，避免重复创建。
-- `p`：四种分组模式共用独立 `Pinned` 区；先应用搜索/项目过滤，再分组，不在普通组重复，按置顶时间倒序，每组默认5条。
-- `Delete`：仅永久删除非当前的单个会话文件。居中深灰确认层默认 `Cancel` 蓝条，数字仅选择，`Enter` 才确认；复核身份与 revision，无跨进程锁，不停止其他进程、不级联删除 Fork、不删除项目。
-- `a`：操作菜单；输入模式保留字母输入，保留 `r` 命名和 `d` 窄屏详情旧按键。
-- 自动标题加强 system prompt 并由 `cleanModelTitle` 清理“短会话标题-”“会话标题:”“Short session title”等前缀；不改旧标题、不重新请求模型。
+## Install
 
-## 安装 / Install
-
-要求 Node `>=22.19.0`、Git，以及`@earendil-works/pi-coding-agent`的Pi `>=1.4.0 <1.5.0`。不承诺旧版`@mariozechner/*`或其他Pi分支兼容。
+Requires **Node.js 22.19.0+**, **Git**, and **Pi 1.4.x** from `@earendil-works/pi-coding-agent`.
 
 ```sh
 pi install git:github.com/De0ta/PiSessionViewer@v1.0.0
 ```
 
-重启Pi后使用`/session-browser`，或在完全空白的输入框按`←`。Pi负责克隆和加载TypeScript，不需要手动编译或复制文件，也不需要额外配置本插件的API密钥。
+Restart Pi, then run:
 
-默认安装到个人配置，跨项目恢复后仍能加载。不建议使用`--local`进行项目级安装，否则切换项目后插件可能不再启用。已有本地开发版时，请先用`pi list`检查并移除旧来源，避免同时加载两份。
+```text
+/session-browser
+```
 
-固定版本不会随`pi update --extensions`自动跳到下一个标签；升级时移除旧来源再安装新标签。安装、升级、卸载和源码试用见[安装指南](docs/install.md)。本项目未发布npm包，不要使用`npm install -g pi-session-viewer`。
+Alternatively, press `←` when the main editor is completely empty. Normal cursor movement is preserved when the editor contains text, whitespace, or newlines, or when autocomplete is active. If another extension owns the custom editor, use the command instead.
 
-### 平台与验证边界
+Pi loads the TypeScript extension directly: no build step, manual file copying, or separate API key is required. Automatic naming uses your existing Pi model configuration and credentials.
 
-以下通过记录属于已发布 v1.0，不代表 Unreleased 管理增强已验证。
+The default personal installation keeps the extension available when changing projects. Avoid `--local` unless you specifically want a project-scoped installation. Do not load an installed copy and `pi -e .` at the same time.
 
-| 环境 | 验证情况 |
+**Distribution:** the stable release is available through GitHub, not npm. A pinned tag does not advance to a new release with `pi update --extensions`; remove the old source and install the new published tag when upgrading. See the [installation, update, and removal guide](https://github.com/De0ta/PiSessionViewer/blob/main/docs/install.md).
+
+## Quick start
+
+1. Open `/session-browser`. Sessions from all projects appear by default.
+2. Press `F3` to search, `Tab` to limit results to the current project, or `g` to change grouping.
+3. Select a conversation with `↑` / `↓` and inspect its latest exchange in the details pane.
+4. Press `Enter` or `→` to open the resume confirmation page.
+5. Confirm the destination. Pi switches to the session and its project runtime.
+
+Press `Esc` to return without resuming. Returning from the confirmation page preserves your search, grouping, expanded groups, selection, and details scroll position.
+
+### Grouping and previews
+
+Each group initially shows five sessions; `Show more` reveals five more. Recent activity uses six non-overlapping intervals: under 5 hours, 5 hours–1 day, 1–7 days, 7–30 days, 30–90 days, and 90 days or more. Model groups use provider and model ID.
+
+Previews follow the active branch and honor committed context edits. They show the latest reply and its corresponding prompt, or the latest prompt when no reply exists. Thinking and tool results are not displayed.
+
+Only the current Pi process has observed runtime status. Other sessions are labeled `Saved`, which does **not** mean that another process has stopped using them.
+
+## Session management · unreleased
+
+The `main` branch includes the following enhancements. **They are not part of the published `v1.0.0` release.**
+
+| Key | Action |
 | --- | --- |
-| Windows / Node 24 / Pi 1.4.0 | 本地自动化与独立加载验证通过；真实终端端到端未纳入自动化 |
-| Windows + Ubuntu / Node 22.19、24 | 四组CI、97测试、发布包加载与Git安装smoke全部通过 |
-| Linux真实终端 / SSH / tmux | 未人工验收；自动化通过也不等于这些交互环境全部验证 |
-| macOS、其他Pi版本 | 未验证 |
+| `n` | Create an empty session in the current working directory; no prompt is sent. |
+| `f` | Fork the selected conversation's effective branch, including its latest reply, and open the copy. |
+| `p` | Pin or unpin a saved session in a separate `Pinned` section across all four grouping modes. |
+| `Delete` | Open a confirmation dialog to permanently delete one non-current session file. |
+| `a` | Open the action menu: New, Fork, Pin / Unpin, Rename, and Delete. |
 
-Linux按原生POSIX路径处理，无Windows专用运行依赖；请使用Linux自身的Node/Pi与会话目录，不要直接恢复包含Windows项目路径的会话。
+These controls do not intercept letters while searching or renaming. An unsaved current session remains visible as `Unsaved` and cannot be pinned or forked. The current session cannot be deleted.
 
-## 快捷键
+Forks receive an independent identity and a ` · Fork` title suffix; they do not inherit pins. Forking a historical session reads a validated snapshot without first resuming or rewriting the source. If the copy is created but cannot be opened, it is retained; retrying on the same confirmation page reuses that copy.
 
-| 按键 | 操作 |
+Deletion defaults to **Cancel**. Number keys change the selection; only `Enter` submits. Deletion affects one session file, not its project, forks, or other running processes. Pins and historical title aliases are stored separately from session history.
+
+The enhancements have passed type checking, isolated tests, package-loading checks, and independent code review. **Real-terminal interaction and complete host runtime switching still require manual acceptance testing.** Implementation constraints and the acceptance checklist are documented in [Session management](https://github.com/De0ta/PiSessionViewer/blob/main/docs/management.md).
+
+## Keyboard reference
+
+The table below describes the published `v1.0.0` browser. Additional development-branch controls are listed above.
+
+| Key | Action |
 | --- | --- |
-| `↑` / `↓` | 选择会话（遵循 Pi 的列表方向键配置） |
-| `PageUp` / `PageDown` | 翻页选择 |
-| `Enter` / `→` | 进入恢复转换页；当前会话直接返回；选中 `Show more` 则展开5条（搜索中`→`保留光标移动） |
-| `Tab` / `Shift+Tab` | 全部项目 / 当前项目（`Ctrl+O` 仍兼容） |
-| `F3` | 打开 / 关闭搜索 |
-| `r` | 编辑选中标题；Enter保存，Esc取消；搜索中仍是普通字母 |
-| `g` | 循环切换 Project → Recent → Model → Status 分组 |
-| `?` | 快捷键帮助 |
-| `Ctrl+R` | 重新扫描 |
-| `Shift+↑` / `Shift+↓` | 只滚动最后回复，保留Prompt与元数据 |
-| `d` / `←` | 窄屏详情 / 列表（搜索模式保留光标移动） |
-| `Esc` | 从帮助 / 搜索返回；普通模式关闭 |
-| `Ctrl+C` | 直接关闭浏览器，不切换 |
+| `↑` / `↓` | Select a session; respects Pi's configured list-navigation bindings. |
+| `PageUp` / `PageDown` | Move the selection by a page. |
+| `Enter` / `→` | Open resume confirmation, return to the current session, or expand `Show more`. |
+| `Tab` / `Shift+Tab` | Switch between all projects and the current project; `Ctrl+O` is also supported. |
+| `F3` | Show or hide search. |
+| `g` | Cycle Project → Recent → Model → Status. |
+| `r` | Rename the selected session; `Enter` saves and `Esc` cancels. |
+| `Shift+↑` / `Shift+↓` | Scroll the latest reply while keeping the prompt and metadata visible. |
+| `d` / `←` | Open details / return to the list on narrow terminals. |
+| `Ctrl+R` | Rescan sessions. |
+| `?` | Open shortcut help. |
+| `Esc` | Leave help or search; otherwise close the browser. |
+| `Ctrl+C` | Close the browser without switching sessions. |
 
-### 恢复转换页
+Search and rename modes retain normal text input and cursor movement rather than triggering letter shortcuts.
 
-同目录只显示目标会话与共用目录，跨目录显示目标/当前目录并提示运行时切换。Pi 1.4公开API不支持保持当前目录恢复其他项目，因此只提供真实可用的`Resume this session`或`Use session directory and resume`，不伪造四个目录选项或“始终”偏好。
+On the resume page, use `↑` / `↓` or `1` / `2` to select, `Enter` / `→` to confirm, and `Esc` / `Ctrl+C` to return. `PageUp` / `PageDown` scroll long paths or errors. Read-only preflight can be cancelled; once the switch is submitted to Pi, the public API cannot cancel it and the page waits for completion.
 
-`↑/↓`或`1/2`选项，`Enter/→`确认，`Esc/Ctrl+C`返回列表，`PgUp/PgDn`滚动长路径/错误。只读预检过程中可返回并取消检查；一旦提交给Pi，公开API无法撤销，页面会显示等待并暂停按键，不能承诺此时Esc取消。
+## Privacy and safety
 
-## 安全与范围
+### Local history
 
-- 浏览、搜索、预览不调用模型，不改写历史文件。自动命名会额外请求当前模型一次，使用现有配置/认证，可能产生费用；不会把命名指令或结果作为消息加入主对话。只对未命名、无手动命名记录及自动命名标记的会话启动，不批量重算既有标题。
-- 命名请求只发送尊重已提交上下文编辑的首问文本（最多4000字符）及首轮最终文本回复（最多2000字符），不含思考、工具结果、图片和资源包装块；输出上限256 token，15秒超时，关闭/切换/reload取消。模型失败后不自动重试，保留本地标题。
-- 自动命名和当前会话`r`命名使用 Pi 原生名称元数据；其他历史`r`只写扩展专用别名，恢复后才转成原生名称。别名存放在 Pi agent 目录的 `pi-session-viewer/titles/`，不保存在项目仓库。
-- 详情字段跟随当前分支；最后回复及对应提问各限制6000字符；尚无回复时显示最新提问。尊重完整分支的上下文编辑，包括删除与空替换；不展示思考和工具结果。超过16 MiB的文件跳过详情读取，仍可恢复。
-- 16 MiB限制约束详情和Model分组的额外文件读取；损坏、缺失、过大或无模型的历史归入`Unknown model`，不影响恢复。模型元数据使用只读内存投影、限4并发及文件修订缓存；只有切到Model时才加载。Pi发现API为建立搜索索引仍扫描完整历史，历史很多时可用`Tab`限定当前项目。
-- Recent根据最后活动时间分为：小于5小时、5小时至1天、1天至7天、7天至30天、30天至90天、90天及以上；1个月按30天计。只显示非空组，不重叠计数。
-- 只有当前进程会话显示真实 `Ready` / `Working` / `Queued` 及本扩展观察到的 `Completed` / `Stopped` / `Error`；状态圈为默认灰、进行中蓝、已完成绿。其他历史统一标记 `Saved`，**不代表它已停止运行**。轻量版不能判断其他进程是否正在写同一会话，恢复前务必确认。
-- 恢复会替换当前会话与项目运行时。Pi可能迁移编辑器文字，因此有任何草稿（含空格/换行）时阻止恢复，需先返回聊天保存或清空；退出而不恢复则保留原编辑器。异步预检前后都检查任务、队列和草稿。
-- v1.0 没有置顶/删除；Unreleased 管理增强边界见上文。仍不提供后台驻留、远程连接、实时多会话状态、跨进程停止、归档/回收站或 worktree。模型标题仅用于命名，不承担任务执行。不替代 Pi 原生 `/resume` 的全部管理功能。
-- 提交前只读核查文件存在/非空、64 KiB内的会话头、ID/目录/版本与文件修订、目标目录存在且可访问；缺失或异常留在转换页，不创建文件，也不通过`process.chdir()`或原地迁移修复。预检不完整解析全文件、不能杜绝随后发生的文件系统竞态或宿主内部错误；Pi原生恢复可能迁移旧格式，这是实际恢复而非浏览/预检的行为。
+Browsing and previews read local files without uploading session history or contacting an author-operated service. Historical renames write extension-specific aliases; renaming the current session uses Pi's native name metadata. An alias is applied as a native name when that session is resumed.
 
-## 发布验证
+Previews limit each displayed prompt and reply to 6,000 characters. Files over 16 MiB are skipped for preview and model-metadata reads, but can still be resumed. Pi's discovery API still scans history to build its search index; use the current-project filter for large collections.
 
-仓库现已公开，采用MIT；[四组CI](https://github.com/De0ta/PiSessionViewer/actions/runs/39999387318)通过。禁用Git凭据后的匿名固定提交安装和真实Pi加载也已通过。详见[发布验证记录](docs/release-v1.0.md)。Linux真实终端交互仍待人工验收，不保证所有终端组合。
+### Automatic titles
 
-## 开发与验证
+After the first successful exchange, an eligible unnamed session receives a local fallback title, followed by at most one extra request to your configured model. The request includes up to 4,000 characters of the first prompt and 2,000 characters of its final text reply, after committed context edits and wrapper removal. It excludes thinking, tool results, and images.
+
+The request has a 256-token output limit and a 15-second timeout. It may incur provider charges, and its usage is not automatically included in Pi's main conversation statistics. Failure leaves the fallback title in place without automatic retries. Existing names and manual renames are not overwritten; older conversations are not renamed in bulk. The development branch also removes generic title-label prefixes from new model results.
+
+### Switching and destructive operations
+
+Resuming replaces the current session and project runtime. Pi 1.4's public API does not support resuming another project's session while retaining the current project directory. Preflight validates the target's identity, revision, and accessible project directory; it does not repair paths or create missing projects.
+
+There is no cross-process lock. Check that another Pi instance is not writing to a session before resuming or deleting it. Revision checks reduce risk but cannot eliminate filesystem races. Native Pi resume may migrate older session formats; browsing and preflight do not.
+
+The extension does not provide background execution, remote connections, cross-process stop controls, archives, a recycle bin, or worktree management.
+
+## Compatibility
+
+| Environment | Validation scope |
+| --- | --- |
+| Windows and Ubuntu; Node 22.19 and 24 | The published v1.0 release passed the four-job CI matrix, 97 tests, package-loading checks, and Git-install smoke checks. |
+| Management enhancements on Windows; Node 24 / Pi 1.4.0 | 164 tests passed; one symlink test was skipped because of Windows permissions. Type checking and isolated package loading passed. |
+| Interactive terminals, SSH, and tmux | Full manual end-to-end acceptance remains outstanding. |
+| macOS and Pi versions outside 1.4.x | Not validated. |
+
+The historical release results do not establish platform coverage for the unreleased enhancements. Linux uses native POSIX paths; Windows project paths are not automatically translated to Linux or WSL paths. Legacy `@mariozechner/*` packages and other Pi forks are outside the compatibility commitment.
+
+## Development
 
 ```sh
+git clone https://github.com/De0ta/PiSessionViewer.git
+cd PiSessionViewer
 npm ci
 npm run check
 npm test
 npm run smoke:package
 npm run smoke:install
-pi -e .
 ```
 
-最后一条命令仅在本次启动试用源码；安装后不要再同时用`-e .`加载第二份。`smoke:package`会在临时目录打包/解包，通过真实Pi加载器验证发布源码，在包内无依赖目录的情况下注册命令；不附着终端、不请求模型、不恢复真实历史、不改变全局安装。
+For an interactive source trial in a disposable project, use `pi -e /absolute/path/to/PiSessionViewer`. Do not simultaneously enable an installed copy.
 
-公开标签可单独检查匿名安装：`npm run smoke:install -- --public --ref v1.0.0`。默认Git smoke重定向到本地已提交HEAD；只有公开模式实际访问GitHub。
+Tests use temporary directories, synthetic sessions, and model substitutes. `smoke:package` checks the current working tree with the real Pi extension loader in isolation. The default Git-install smoke checks committed `HEAD` using a local transport redirect; it does not verify uncommitted changes or GitHub availability. To check a public release anonymously:
 
-测试使用临时目录和合成会话，无真实模型请求；包含 Pi 真实扩展加载器与受控宿主替身。**尚未在真实交互终端中验收，也未自动安装到用户 Pi。**
+```sh
+npm run smoke:install -- --public --ref v1.0.0
+```
 
-- [安装、更新与卸载](docs/install.md)
-- [版本记录](CHANGELOG.md)
-- [会话管理增强：实现边界与隔离人工验收](docs/management.md)
-- [工作流与当前进度](https://github.com/De0ta/PiSessionViewer/blob/main/workflow/README.md)
-- [v0.6 独立恢复转换页](docs/resume-v0.6.md)
-- [v0.5 四种会话分组](docs/groups-v0.5.md)
-- [v0.4 模型标题与交互](docs/model-titles-v0.4.md)
-- [v0.3 细节、命名与验证](docs/refinements-v0.3.md)
-- [全屏改版设计与验证](docs/fullscreen-v0.2.md)
-- [初版设计记录](docs/lightweight-v0.1.md)
-- [开源方案调研](docs/open-source-survey.md)
-- [空输入左键分析](docs/empty-left-entry.md)
+These checks do not attach to a live terminal, call a paid model, modify real session history, or install into your personal Pi configuration. Loader checks and controlled host substitutes are not a substitute for full runtime acceptance tests.
 
-MIT许可证见[LICENSE](LICENSE)。截图、真实会话、凭据、用户配置和依赖目录不纳入版本控制或发布包。仅在GitHub发布；包元数据保留`private: true`以防误发npm，不影响Git来源安装。
+## Documentation and support
+
+- [Installation, updates, removal, and troubleshooting](https://github.com/De0ta/PiSessionViewer/blob/main/docs/install.md)
+- [Session management: implementation boundaries and manual acceptance](https://github.com/De0ta/PiSessionViewer/blob/main/docs/management.md)
+- [Changelog](CHANGELOG.md)
+- [v1.0 release validation](https://github.com/De0ta/PiSessionViewer/blob/main/docs/release-v1.0.md)
+- [Project status and design records](https://github.com/De0ta/PiSessionViewer/blob/main/workflow/README.md)
+- [Report an issue](https://github.com/De0ta/PiSessionViewer/issues)
+
+When reporting a problem, include your OS, terminal, Node/Pi versions, and reproduction steps. Redact screenshots and logs; do not attach credentials or full private session files.
+
+## License
+
+[MIT](LICENSE). Session history, credentials, personal Pi configuration, and reference screenshots are not included in the distribution.
