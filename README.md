@@ -166,7 +166,7 @@ These checks do not attach to a live terminal, call a paid model, modify real se
 - [Session management: implementation boundaries and manual acceptance](https://github.com/De0ta/PiSessionViewer/blob/main/docs/management.md)
 - [Changelog](CHANGELOG.md)
 - [v1.0 release validation](https://github.com/De0ta/PiSessionViewer/blob/main/docs/release-v1.0.md)
-- [Project status and design records](https://github.com/De0ta/PiSessionViewer/blob/main/workflow/README.md)
+- [Technical documentation and design records](https://github.com/De0ta/PiSessionViewer/tree/main/docs)
 - [Report an issue](https://github.com/De0ta/PiSessionViewer/issues)
 
 When reporting a problem, include your OS, terminal, Node/Pi versions, and reproduction steps. Redact screenshots and logs; do not attach credentials or full private session files.

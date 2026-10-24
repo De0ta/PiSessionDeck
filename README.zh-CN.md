@@ -166,7 +166,7 @@ npm run smoke:install -- --public --ref v1.0.0
 - [会话管理：实现边界与人工验收](https://github.com/De0ta/PiSessionViewer/blob/main/docs/management.md)
 - [版本记录](CHANGELOG.md)
 - [v1.0 发布验证](https://github.com/De0ta/PiSessionViewer/blob/main/docs/release-v1.0.md)
-- [项目进度与设计记录](https://github.com/De0ta/PiSessionViewer/blob/main/workflow/README.md)
+- [技术文档与设计记录](https://github.com/De0ta/PiSessionViewer/tree/main/docs)
 - [提交问题](https://github.com/De0ta/PiSessionViewer/issues)
 
 报告问题时，请提供操作系统、终端、Node/Pi 版本与复现步骤。截图和日志应先脱敏，不要附上凭据或完整私人会话。
