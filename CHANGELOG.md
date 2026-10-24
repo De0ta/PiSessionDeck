@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.2 — 2026-10-24
+
+### Fixed
+
+- `n` and New in the action menu create an empty session in the selected conversation's workspace instead of the current chat's workspace. With no selection, the current workspace is used. Missing target directories are reported without falling back to a different project; retries reuse an already-created empty session.
+- Validate workspace paths before the same-directory shortcut, retain draft and queue checks around asynchronous preparation, and ignore late results after shutdown.
+
+### Validation
+
+- Type checks passed; 183 tests, 182 passed and 1 skipped because the Windows account lacked symlink permissions.
+- Package smoke passed with 21 packed files and isolated Pi extension loading.
+
 ## 1.0.1 — 2026-10-24
 
 ### Added

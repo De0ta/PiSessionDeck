@@ -10,6 +10,7 @@ import { createTitleStore } from "./titles.ts";
 import { createFocusGuard } from "./overlay.ts";
 import { createPinStore } from "./pins.ts";
 import { captureSessionRevision, deleteSession, forkHistorySession } from "./management.ts";
+import { createEmptySession, validateNewSessionCwd } from "./new-session.ts";
 
 const COMMAND = "session-browser";
 type EditorFactory = NonNullable<ReturnType<ExtensionContext["ui"]["getEditorComponent"]>>;
@@ -54,7 +55,18 @@ export default function sessionDeck(pi: ExtensionAPI): void {
             validate: validateResumeTarget,
             resume: (selection) => ctx.switchSession(selection.path),
             actions: {
-              newSession: () => ctx.newSession(),
+              prepareNew: async (cwd, signal) => {
+                const currentCwd = ctx.cwd;
+                await validateNewSessionCwd(cwd, signal);
+                return pathKey(cwd) === pathKey(currentCwd) ? undefined : createEmptySession(cwd, signal);
+              },
+              newSession: async (prepared) => {
+                if (!prepared) return ctx.newSession();
+                await validateResumeTarget(prepared, new AbortController().signal);
+                if (shuttingDown) throw new Error("会话正在关闭。");
+                if (!ctx.isIdle() || ctx.hasPendingMessages() || ctx.ui.getEditorText() !== "") throw new Error("当前任务、队列或草稿已变化，请处理后重试。");
+                return ctx.switchSession(prepared.path);
+              },
               prepareFork: async (selection, signal) => {
                 if (isUnsaved(selection)) throw new Error("会话尚未保存，请先发送一条消息，再 Fork。");
                 await validateResumeTarget(selection, signal);

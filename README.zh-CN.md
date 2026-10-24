@@ -35,10 +35,10 @@ PiSessionDeck 在 Pi 内提供全屏、面向项目的本地会话视图。无�
 pi install npm:@link17528/pi-session-deck
 ```
 
-需要固定版本时使用 `npm:@link17528/pi-session-deck@1.0.1`。也可通过 Git 安装，此方式还需 **Git**：
+需要固定版本时使用 `npm:@link17528/pi-session-deck@1.0.2`。也可通过 Git 安装，此方式还需 **Git**：
 
 ```sh
-pi install git:github.com/De0ta/PiSessionDeck@v1.0.1
+pi install git:github.com/De0ta/PiSessionDeck@v1.0.2
 ```
 
 重启 Pi，然后输入：
@@ -105,13 +105,15 @@ Pi 直接加载 TypeScript 扩展，无需编译、手动复制文件或单独�
 
 | 按键 | 操作 |
 | --- | --- |
-| `n` | 在当前工作目录新建空会话，不发送提问。 |
+| `n` | 在选中会话的项目目录新建空会话；没有选中项时使用当前目录，不发送提问。 |
 | `f` | 分叉选中会话的有效分支，保留末次回复，并打开副本。 |
 | `p` | 置顶或取消置顶已保存会话；四种分组模式均有独立 `Pinned` 区。 |
 | `Delete` | 打开确认弹层，永久删除一个非当前会话文件。 |
 | `a` | 打开 New、Fork、Pin / Unpin、Rename、Delete 操作菜单。 |
 
 搜索与重命名时，字母仍作为文本输入。尚未落盘的当前会话显示 `Unsaved`，不能置顶或分叉；当前会话不能删除。
+
+新建时，同项目使用 Pi 原生 New；跨项目则创建只含原生会话头的新文件，再切换进入。选中会话的项目目录缺失或无效时会报错，不回退到当前目录。新建不发送提问、不复制历史；文件已创建但打开失败或取消时，在原确认页重试会复用该文件。
 
 分叉具有独立身份，标题追加 ` · Fork`，不继承置顶。历史分叉通过验证后的只读快照创建，不先恢复或改写源会话。如果副本已创建但打开失败，会保留该副本；在原确认页重试会复用它。
 
@@ -170,8 +172,8 @@ Pi 直接加载 TypeScript 扩展，无需编译、手动复制文件或单独�
 | 检查项目 | 覆盖范围 |
 | --- | --- |
 | CI 矩阵 | Windows、Ubuntu × Node 22.19、24。 |
-| 本地回归测试 | Windows / Node 24：164 项通过，1 项符号链接测试因账号权限跳过。 |
-| 打包与安装检查 | 类型检查、隔离 Pi 扩展加载、Git 安装。 |
+| 本地回归测试 | Windows / Node 24：183 项测试，182 项通过，1 项符号链接测试因账号权限跳过。 |
+| 本地打包检查 | 类型检查通过；21 文件包通过隔离 Pi 扩展加载检查。 |
 
 Linux 使用原生 POSIX 路径。请使用运行 Pi 的环境所对应的项目路径；Windows 路径不会自动转换为 Linux 或 WSL 路径。各版本执行结果见 [GitHub Releases](https://github.com/De0ta/PiSessionDeck/releases)。
 
@@ -192,7 +194,7 @@ npm run smoke:install
 测试使用临时会话数据。`smoke:package` 通过 Pi 扩展加载器检查当前工作树；`smoke:install` 检查已提交 `HEAD` 的 Git 安装。检查公开版本的匿名安装可使用：
 
 ```sh
-npm run smoke:install -- --public --ref v1.0.1
+npm run smoke:install -- --public --ref v1.0.2
 ```
 
 ## 文档与支持

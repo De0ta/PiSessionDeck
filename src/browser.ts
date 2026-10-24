@@ -371,7 +371,7 @@ export class SessionBrowser implements Component, Focusable {
     if (!this.searchOpen && !this.loading) {
       if (data === "p" && this.selected && this.options.pins) { void this.togglePin(this.selected); return; }
       if (this.options.onAction) {
-        if (data === "n") { this.options.onAction("new"); return; }
+        if (data === "n") { this.options.onAction("new", this.selected); return; }
         if (data === "a") { this.options.onAction("menu", this.selected); return; }
         if (this.selected && (data === "f" || matchesKey(data, "delete"))) {
           this.options.onAction(data === "f" ? "fork" : "delete", this.selected); return;

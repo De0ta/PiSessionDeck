@@ -323,15 +323,23 @@ test("晚于本扩展的boundary删除在自动命名前提交", async () => har
 async function manage(h: Awaited<ReturnType<typeof setup>>, sessions: SessionInfo[], run: (flow: ResumeFlow) => Promise<void>): Promise<void> {
   const oldList = SessionManager.listAll;
   SessionManager.listAll = async () => sessions;
-  h.ctx.ui.custom = (async (factory) => {
-    const tui = new TuiMainScreen(new ProcessTerminal()); tui.requestRender = () => {};
-    const theme = { style: (text: string) => text, fg: (_: string, text: string) => text, bold: (text: string) => text };
-    const keys = new KeybindingsManager(TUI_KEYBINDINGS);
-    const flow = factory(tui, theme as unknown as Parameters<typeof factory>[1], keys as unknown as Parameters<typeof factory>[2], () => {}) as ResumeFlow;
-    await tick(); await tick();
-    await run(flow);
+  let scenario: Promise<void> | undefined;
+  h.ctx.ui.custom = ((factory) => {
+    scenario = (async () => {
+      const tui = new TuiMainScreen(new ProcessTerminal()); tui.requestRender = () => {};
+      const theme = { style: (text: string) => text, fg: (_: string, text: string) => text, bold: (text: string) => text };
+      const keys = new KeybindingsManager(TUI_KEYBINDINGS);
+      const flow = factory(tui, theme as unknown as Parameters<typeof factory>[1], keys as unknown as Parameters<typeof factory>[2], () => {}) as ResumeFlow;
+      try { await waitFor(() => !flow.render(160).join("\n").includes("Loading tasks...")); await run(flow); } finally { flow.close(); }
+    })();
+    return scenario;
   }) as ExtensionCommandContext["ui"]["custom"];
-  try { await h.command!.handler("", h.ctx); } finally { SessionManager.listAll = oldList; }
+  try {
+    await h.command!.handler("", h.ctx);
+    // The command catches UI errors for notifications; assertions must still reject the test.
+    assert.ok(scenario, "management UI was opened");
+    await scenario;
+  } finally { SessionManager.listAll = oldList; }
 }
 async function waitFor(check: () => boolean): Promise<void> {
   for (let attempt = 0; attempt < 200 && !check(); attempt++) await new Promise((resolve) => setTimeout(resolve, 10));
@@ -350,8 +358,96 @@ test("入口新建保持草稿/队列保护，成功不发送模型消息；宿�
       h.ctx.isIdle = () => { throw new Error("outgoing runtime accessed"); };
       return { cancelled: false };
     };
-    flow.handleInput("n"); await tick(); await tick();
-    assert.equal(h.lifecycle.newSessions, 1); assert.deepEqual(h.sent, []);
+    flow.handleInput("n"); await waitFor(() => h.lifecycle.newSessions === 1);
+    assert.deepEqual(h.sent, []);
+  });
+}));
+
+for (const menu of [false, true]) test(`入口${menu ? "New菜单" : "n快捷键"}在选中工作区创建独立空会话，不在当前聊天工作区创建`, async () => harness(async (h) => {
+  const project = join(h.ctx.cwd, "..", "selected-project"); await mkdir(project);
+  const file = join(project, "source.jsonl");
+  const original = jsonl({ ...header, id: "selected-source", cwd: project }, user("u", null, "do not copy source prompt"));
+  await writeFile(file, original);
+  const source = session("selected-source", { path: file, cwd: project });
+  await manage(h, [source], async (flow) => {
+    for (let i = 0; i < 5 && flow.browser.selected?.id !== source.id; i++) flow.handleInput("\x1b[B");
+    assert.equal(flow.browser.selected?.id, source.id);
+    if (menu) { flow.handleInput("a"); flow.handleInput("1"); flow.handleInput("\r"); }
+    else flow.handleInput("n");
+    await waitFor(() => h.switches.length === 1);
+    assert.equal(h.lifecycle.newSessions, 0); assert.deepEqual(h.lifecycle.forks, []); assert.deepEqual(h.sent, []);
+    const created = SessionManager.open(h.switches[0]!);
+    assert.equal(created.getCwd(), project); assert.notEqual(created.getSessionId(), source.id);
+    assert.deepEqual(created.getEntries(), []); assert.equal(created.getHeader()?.parentSession, undefined);
+    assert.equal(await readFile(file, "utf8"), original);
+    assert.equal(h.manager.getCwd(), h.ctx.cwd, "outgoing manager was not mutated to imitate a workspace switch");
+  });
+}));
+
+test("入口跨工作区New切换触发shutdown后不访问旧运行时", async () => harness(async (h) => {
+  const project = join(h.ctx.cwd, "..", "selected-project"); await mkdir(project);
+  const source = session("selected", { cwd: project });
+  await manage(h, [source], async (flow) => {
+    for (let i = 0; i < 5 && flow.browser.selected?.id !== source.id; i++) flow.handleInput("\x1b[B");
+    h.ctx.switchSession = async (file) => {
+      h.switches.push(file);
+      await h.emit("session_shutdown", { reason: "switch" });
+      h.ctx.isIdle = () => { throw new Error("outgoing runtime accessed"); };
+      return { cancelled: false };
+    };
+    flow.handleInput("n"); await waitFor(() => h.switches.length === 1);
+    await tick(); assert.deepEqual(h.notices, []); assert.equal(h.lifecycle.newSessions, 0);
+    assert.equal(SessionManager.open(h.switches[0]!).getCwd(), project);
+  });
+}));
+
+test("入口选中同一工作区时仍走原生New", async () => harness(async (h) => {
+  const source = session("same-project", { cwd: h.ctx.cwd });
+  await manage(h, [source], async (flow) => {
+    for (let i = 0; i < 5 && flow.browser.selected?.id !== source.id; i++) flow.handleInput("\x1b[B");
+    assert.equal(flow.browser.selected?.id, source.id);
+    flow.handleInput("n"); await waitFor(() => h.lifecycle.newSessions === 1);
+    assert.deepEqual(h.switches, []); assert.deepEqual(h.sent, []);
+  });
+}));
+
+test("入口跨工作区New在异步创建后重检队列，重试复用空会话", async () => harness(async (h) => {
+  const project = join(h.ctx.cwd, "..", "selected-project"); await mkdir(project);
+  const source = session("selected", { cwd: project });
+  await manage(h, [source], async (flow) => {
+    for (let i = 0; i < 5 && flow.browser.selected?.id !== source.id; i++) flow.handleInput("\x1b[B");
+    const prepare = flow.options.actions!.prepareNew;
+    let prepares = 0; let created: SessionInfo | undefined;
+    flow.options.actions!.prepareNew = async (directory, signal) => {
+      prepares++; created = await prepare(directory, signal); h.state.pending = true; return created;
+    };
+    flow.handleInput("n");
+    await waitFor(() => flow.render(140).join("\n").includes("排队消息"));
+    assert.ok(created); assert.deepEqual(h.switches, []); assert.equal(h.lifecycle.newSessions, 0);
+    h.state.pending = false; flow.handleInput("\r"); await waitFor(() => h.switches.length === 1);
+    assert.equal(prepares, 1); assert.equal(h.switches[0], created.path);
+  });
+}));
+
+test("入口New拒绝缺失工作区而不回退到当前聊天目录", async () => harness(async (h) => {
+  const source = session("missing-project", { cwd: join(h.ctx.cwd, "missing-project") });
+  await manage(h, [source], async (flow) => {
+    for (let i = 0; i < 5 && flow.browser.selected?.id !== source.id; i++) flow.handleInput("\x1b[B");
+    flow.handleInput("n"); await waitFor(() => flow.render(160).join("\n").includes("ENOENT"));
+    assert.equal(h.lifecycle.newSessions, 0); assert.deepEqual(h.switches, []); assert.deepEqual(h.sent, []);
+    flow.handleInput("\x1b"); assert.equal(flow.browser.selected?.id, source.id);
+  });
+}));
+
+for (const directory of ["", ".", "relative/project"]) test(`入口New拒绝无效工作区${JSON.stringify(directory)}，包括规范化后与当前项目相同的相对路径`, async () => harness(async (h) => {
+  h.ctx.cwd = process.cwd();
+  const source = session("invalid-workspace", { cwd: directory });
+  await manage(h, [source], async (flow) => {
+    for (let i = 0; i < 5 && flow.browser.selected?.id !== source.id; i++) flow.handleInput("\x1b[B");
+    assert.equal(flow.browser.selected?.id, source.id);
+    flow.handleInput("n");
+    await waitFor(() => flow.render(160).join("\n").includes("不是绝对路径"));
+    assert.equal(h.lifecycle.newSessions, 0); assert.deepEqual(h.switches, []);
   });
 }));
 

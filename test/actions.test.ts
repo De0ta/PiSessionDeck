@@ -16,6 +16,7 @@ function fixture(target = session("a")) {
   let signal: AbortSignal | undefined;
   const prepared = session("fork", { path: target.path + ".fork" });
   const actions: NonNullable<ResumeFlowOptions["actions"]> = {
+    prepareNew: async () => undefined,
     newSession: async () => { creates++; return { cancelled: true }; },
     prepareFork: async (_session, abort) => { prepares++; signal = abort; return prepared; },
     fork: async (_session, copy) => { forks++; assert.equal(copy, prepared); return { cancelled: true }; },
@@ -87,7 +88,7 @@ test("current native fork accepts undefined preparation without repeating prepar
   assert.equal(prepares, 1); assert.equal(forks, 2); f.flow.close();
 });
 
-test("new and fork check canResume before and after preflight, including new's empty preflight", async () => {
+test("new and fork check canResume before and after preflight", async () => {
   for (const action of ["new", "fork"] as const) {
     const f = fixture(); await tick(); f.issue = "draft"; f.open(action); if (action === "fork") f.flow.handleInput("\r"); await tick();
     assert.match(f.text(), /draft/); assert.equal(f.counts.creates + f.counts.prepares, 0); f.flow.close();
@@ -97,6 +98,66 @@ test("new and fork check canResume before and after preflight, including new's e
     g.issue = "new queue"; pending.resolve(g.prepared); await tick();
     assert.match(g.text(), /new queue/); assert.equal(g.counts.creates + g.counts.forks, 0); assert.equal(g.counts.checks, 2); g.flow.close();
   }
+});
+
+test("new captures selected workspace for n and menu; no selection falls back to current workspace", async () => {
+  for (const menu of [false, true]) {
+    const target = session("other", { cwd: cwd + "/selected-project" });
+    const f = fixture(target); await tick(); const directories: string[] = [];
+    for (let i = 0; i < 5 && f.flow.browser.selected?.id !== target.id; i++) f.flow.handleInput("\x1b[B");
+    assert.equal(f.flow.browser.selected?.id, target.id);
+    f.actions.prepareNew = async (directory) => { directories.push(directory); return undefined; };
+    if (menu) { f.open("menu"); f.flow.handleInput("1"); f.flow.handleInput("\r"); }
+    else f.flow.handleInput("n");
+    await tick();
+    assert.deepEqual(directories, [target.cwd]); assert.equal(f.counts.creates, 1);
+    assert.ok(f.text().includes(target.cwd)); f.flow.close();
+  }
+  const f = fixture(); await tick(); const directories: string[] = [];
+  f.actions.prepareNew = async (directory) => { directories.push(directory); return undefined; };
+  f.flow.browser.options.onAction!("new", undefined); await tick();
+  assert.deepEqual(directories, [cwd]); f.flow.close();
+});
+
+test("new retries reuse the created empty session after host cancellation or failure", async () => {
+  const f = fixture(); await tick(); let prepares = 0, opens = 0;
+  f.actions.prepareNew = async () => { prepares++; return f.prepared; };
+  f.actions.newSession = async (created) => {
+    assert.equal(created, f.prepared);
+    if (++opens === 2) throw new Error("host refused");
+    return { cancelled: true };
+  };
+  f.open("new"); await tick();
+  assert.ok(f.text().includes(f.prepared.path));
+  f.flow.handleInput("\r"); await tick(); assert.match(f.text(), /host refused/);
+  f.flow.handleInput("\r"); await tick();
+  assert.equal(prepares, 1); assert.equal(opens, 3); f.flow.close();
+});
+
+test("new preparation is cancellable, late creation stays discoverable, late failures do not alter closed UI", async () => {
+  for (const reject of [false, true]) {
+    const f = fixture(); await tick(); const pending = deferred<SessionInfo | undefined>(); let signal: AbortSignal | undefined;
+    f.actions.prepareNew = (_directory, abort) => { signal = abort; return pending.promise; };
+    f.open("new"); f.flow.handleInput("\x1b");
+    assert.equal(signal?.aborted, true); assert.equal(f.flow.browser.focused, true);
+    const renders = f.counts.renders;
+    if (reject) pending.reject(new Error("late failure")); else pending.resolve(f.prepared);
+    await tick(); assert.equal(f.counts.creates, 0);
+    assert.equal(f.counts.renders, renders + (reject ? 0 : 1)); f.flow.close();
+  }
+});
+
+test("new preparation failures can retry without silently changing the target directory", async () => {
+  const target = session("other", { cwd: cwd + "/missing" }); const f = fixture(target); await tick();
+  const directories: string[] = [];
+  f.actions.prepareNew = async (directory) => {
+    directories.push(directory);
+    if (directories.length === 1) throw new Error("missing project");
+    return undefined;
+  };
+  f.open("new"); await tick(); assert.match(f.text(), /missing project/); assert.equal(f.counts.creates, 0);
+  f.flow.handleInput("\r"); await tick();
+  assert.deepEqual(directories, [target.cwd, target.cwd]); assert.equal(f.counts.creates, 1); f.flow.close();
 });
 
 test("new locks reentry; submission cannot escape, rejection retries, shutdown discards late result", async () => {

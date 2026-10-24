@@ -17,10 +17,10 @@ PiSessionDeck 是 Pi 扩展，可通过 npm 或 GitHub 安装，无需构建或�
 pi install npm:@link17528/pi-session-deck
 ```
 
-固定 npm 版本使用 `pi install npm:@link17528/pi-session-deck@1.0.1`。也可安装 GitHub 标签：
+固定 npm 版本使用 `pi install npm:@link17528/pi-session-deck@1.0.2`。也可安装 GitHub 标签：
 
 ```sh
-pi install git:github.com/De0ta/PiSessionDeck@v1.0.1
+pi install git:github.com/De0ta/PiSessionDeck@v1.0.2
 ```
 
 默认安装到个人代理配置，跨项目可用；仅需当前项目使用时可加 `--local`。重启 Pi 后输入 `/session-browser`，或在完全空白的输入框按 `←`。
@@ -35,7 +35,7 @@ pi install git:github.com/De0ta/PiSessionDeck@v1.0.1
 | `↑/↓` | 选择会话 |
 | `Enter/→` | 进入恢复确认页 |
 | `r` / `d` | 手动改名 / 窄屏详情 |
-| `n` / `f` | 当前 cwd 新建 / 分叉已保存会话 |
+| `n` / `f` | 在选中会话的项目目录新建空会话（无选中项时使用当前目录）/ 分叉已保存会话 |
 | `p` | 置顶或取消置顶 |
 | `Delete` | 永久删除单个非当前会话 |
 | `a` / `Esc` | 打开操作菜单 / 返回或退出 |
@@ -43,6 +43,8 @@ pi install git:github.com/De0ta/PiSessionDeck@v1.0.1
 搜索和改名输入模式中，字母按键用于输入文本。未落盘会话显示 `Unsaved`，保存后可置顶和分叉；当前会话不能删除。置顶信息独立保存，四种分组均显示 `Pinned` 区，并遵循搜索和项目过滤。
 
 恢复经确认后由 Pi 切换到目标项目。新建、分叉和恢复均检查任务、队列和编辑器草稿；切换前请保存或清空草稿。
+
+`n` 和菜单 New 使用相同的新建流程：同目录调用 Pi 原生 New；跨目录创建只含原生会话头的新文件后切换，不发送提问、不复制历史。选中会话的目录缺失或无效时直接报错，不回退到当前目录；文件已创建但打开失败或取消时，原确认页重试会复用该文件。
 
 分叉保留有效分支和末次回复，不改写源会话、不继承置顶。历史快照上限为 16 MiB；创建后打开失败时文件保留，可重试或刷新列表后打开。
 
@@ -63,11 +65,11 @@ pi remove git:github.com/De0ta/PiSessionDeck@v1.0.1
 pi install npm:@link17528/pi-session-deck
 ```
 
-Git 来源从 v1.0.0 升级到 v1.0.1：
+Git 来源从 v1.0.1 升级到 v1.0.2：
 
 ```sh
-pi remove git:github.com/De0ta/PiSessionDeck@v1.0.0
-pi install git:github.com/De0ta/PiSessionDeck@v1.0.1
+pi remove git:github.com/De0ta/PiSessionDeck@v1.0.1
+pi install git:github.com/De0ta/PiSessionDeck@v1.0.2
 ```
 
 移除命令应使用 `pi list` 中记录的实际来源，包括提交版本和使用旧仓库名 PiSessionViewer 的安装；GitHub 的地址重定向不会自动修改本地来源声明。保持单一安装来源，避免同时加载安装版和 `pi -e .`。无标签的 `main` 来源会跟随开发分支。
@@ -80,7 +82,7 @@ pi install git:github.com/De0ta/PiSessionDeck@v1.0.1
 pi remove npm:@link17528/pi-session-deck
 ```
 
-固定 npm 版本或 Git 来源应使用对应的完整声明，例如 `npm:@link17528/pi-session-deck@1.0.1` 或 `git:github.com/De0ta/PiSessionDeck@v1.0.1`。
+固定 npm 版本或 Git 来源应使用对应的完整声明，例如 `npm:@link17528/pi-session-deck@1.0.2` 或 `git:github.com/De0ta/PiSessionDeck@v1.0.2`。
 
 重启 Pi。会话历史保留；手动标题缓存和置顶元数据位于代理配置下的 `pi-session-viewer` 目录，不再需要时可单独清理。
 
@@ -92,7 +94,12 @@ pi remove npm:@link17528/pi-session-deck
 
 新建、分叉、置顶、删除和菜单操作本身不请求模型。新标题会清理“会话标题:”等标签前缀，已有标题保持不变。
 
-## 检查结果
+## 本地检查结果
+
+- Windows / Node 24：`npm run check` 通过；183 项测试，182 通过，1 项因符号链接权限跳过。
+- 工作树打包检查通过，共 21 个文件；隔离 Pi 扩展加载检查通过。
+
+### v1.0.1 发布检查记录
 
 - Windows / Node 24：`npm run check` 通过；165 项测试，164 通过，1 项因符号链接权限跳过。
 - 打包检查通过，共 20 个文件；Git 安装检查成功加载 1.0.1。

@@ -35,10 +35,10 @@ Requires **Node.js 22.19.0+** and **Pi 1.4.x** from `@earendil-works/pi-coding-a
 pi install npm:@link17528/pi-session-deck
 ```
 
-For a pinned version, use `npm:@link17528/pi-session-deck@1.0.1`. Git installation is also available and requires **Git**:
+For a pinned version, use `npm:@link17528/pi-session-deck@1.0.2`. Git installation is also available and requires **Git**:
 
 ```sh
-pi install git:github.com/De0ta/PiSessionDeck@v1.0.1
+pi install git:github.com/De0ta/PiSessionDeck@v1.0.2
 ```
 
 Restart Pi, then run:
@@ -105,13 +105,15 @@ Create, fork, pin, rename, and delete conversations directly from the browser.
 
 | Key | Action |
 | --- | --- |
-| `n` | Create an empty session in the current working directory; no prompt is sent. |
+| `n` | Create an empty session in the selected conversation's project directory; use the current directory if nothing is selected. No prompt is sent. |
 | `f` | Fork the selected conversation's effective branch, including its latest reply, and open the copy. |
 | `p` | Pin or unpin a saved session in a separate `Pinned` section across all four grouping modes. |
 | `Delete` | Open a confirmation dialog to permanently delete one non-current session file. |
 | `a` | Open the action menu: New, Fork, Pin / Unpin, Rename, and Delete. |
 
 These controls do not intercept letters while searching or renaming. An unsaved current session remains visible as `Unsaved` and cannot be pinned or forked. The current session cannot be deleted.
+
+New uses Pi's native New action within the current project. For another project, it creates a new file containing only a native session header, then switches to it. A selected conversation with a missing or invalid project directory is rejected without falling back to the current directory. New sends no prompt and copies no history; if opening a prepared file fails or is cancelled, retrying on the same confirmation page reuses it.
 
 Forks receive an independent identity and a ` · Fork` title suffix; they do not inherit pins. Forking a historical session reads a validated snapshot without first resuming or rewriting the source. If the copy is created but cannot be opened, it is retained; retrying on the same confirmation page reuses that copy.
 
@@ -170,8 +172,8 @@ PiSessionDeck targets **Pi 1.4.x** and **Node.js 22.19.0+**.
 | Check | Coverage |
 | --- | --- |
 | CI matrix | Windows and Ubuntu × Node 22.19 and 24. |
-| Local regression suite | Windows / Node 24: 164 tests passed; one symlink test skipped because of account permissions. |
-| Package and installation checks | Type checking, isolated Pi extension loading, and Git installation. |
+| Local regression suite | Windows / Node 24: 183 tests, 182 passed; one symlink test skipped because of account permissions. |
+| Local package checks | Type checking passed; the 21-file package passed isolated Pi extension loading. |
 
 Linux uses native POSIX paths. Use the project path for the environment running Pi; Windows paths are not automatically translated to Linux or WSL paths. Release-specific results are linked from the [GitHub releases](https://github.com/De0ta/PiSessionDeck/releases).
 
@@ -192,7 +194,7 @@ To run the source directly, use `pi -e /absolute/path/to/PiSessionDeck` with the
 Tests use temporary session fixtures. `smoke:package` checks the working tree with Pi's extension loader; `smoke:install` verifies installation from committed `HEAD`. To check a public release anonymously:
 
 ```sh
-npm run smoke:install -- --public --ref v1.0.1
+npm run smoke:install -- --public --ref v1.0.2
 ```
 
 ## Documentation and support

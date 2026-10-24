@@ -110,7 +110,8 @@ export class ResumePage implements Component {
 
 export interface ResumeFlowOptions extends Omit<BrowserOptions, "done" | "onSelect"> {
   actions?: {
-    newSession(): Promise<{ cancelled: boolean }>;
+    prepareNew(cwd: string, signal: AbortSignal): Promise<SessionInfo | undefined>;
+    newSession(prepared?: SessionInfo): Promise<{ cancelled: boolean }>;
     prepareFork(session: SessionInfo, signal: AbortSignal): Promise<SessionInfo | undefined>;
     fork(session: SessionInfo, prepared?: SessionInfo): Promise<{ cancelled: boolean }>;
     captureDelete(session: SessionInfo, signal: AbortSignal): Promise<SessionRevision>;
@@ -153,7 +154,7 @@ export class ResumeFlow implements Component, Focusable {
   }
   private action(action: "new" | "fork" | "delete" | "menu", session?: SessionInfo): void {
     if (this.closed || this.page || this.dialog || !this.options.actions) return;
-    if (action === "new") { this.newSession(); return; }
+    if (action === "new") { this.newSession(session ? session.cwd || "" : this.options.cwd); return; }
     if (action === "menu") { this.menu(session); return; }
     if (!session) return;
     if (action === "delete") { this.deleteSession(session); return; }
@@ -188,8 +189,10 @@ export class ResumeFlow implements Component, Focusable {
       }, () => {});
     }
   }
-  private newSession(): void {
-    const dialog = this.showDialog("New session", [], ["Retry", "Cancel"], (index) => {
+  private newSession(cwd: string): void {
+    let prepared: SessionInfo | undefined;
+    let preparationComplete = false;
+    const dialog = this.showDialog("New session", [`Directory  ${safeText(cwd)}`], ["Retry", "Cancel"], (index) => {
       if (index === 1) this.back(); else void submit();
     });
     const controller = new AbortController();
@@ -201,13 +204,21 @@ export class ResumeFlow implements Component, Focusable {
       try {
         const before = this.options.canResume();
         if (before) throw new Error(before);
-        // No filesystem preflight for New, but still recheck queue/draft after yielding.
-        await Promise.resolve();
+        if (!preparationComplete) {
+          const created = await this.options.actions!.prepareNew(cwd, controller.signal);
+          if (created) this.browser.addSession(created);
+          if (!active()) return;
+          prepared = created;
+          preparationComplete = true;
+          if (prepared) {
+            dialog.options.description.push(`Created  ${safeText(prepared.path)}`, "重试会打开已创建的空会话，不会重复创建。");
+          }
+        }
         if (!active()) return;
         const after = this.options.canResume();
         if (after) throw new Error(after);
         dialog.committing = true; this.options.requestRender();
-        const result = await this.options.actions!.newSession();
+        const result = await this.options.actions!.newSession(prepared);
         if (!active()) return;
         if (result.cancelled) dialog.error = "Pi 已取消新建；可重试。";
         else this.close();
