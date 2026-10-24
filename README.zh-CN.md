@@ -29,7 +29,13 @@ PiSessionDeck 在 Pi 内提供全屏、面向项目的本地会话视图。无�
 
 ## 安装
 
-要求 **Node.js 22.19.0+**、**Git**，以及 `@earendil-works/pi-coding-agent` 提供的 **Pi 1.4.x**。
+要求 **Node.js 22.19.0+**，以及 `@earendil-works/pi-coding-agent` 提供的 **Pi 1.4.x**。
+
+```sh
+pi install npm:@link17528/pi-session-deck
+```
+
+需要固定版本时使用 `npm:@link17528/pi-session-deck@1.0.1`。也可通过 Git 安装，此方式还需 **Git**：
 
 ```sh
 pi install git:github.com/De0ta/PiSessionDeck@v1.0.1
@@ -47,7 +53,7 @@ Pi 直接加载 TypeScript 扩展，无需编译、手动复制文件或单独�
 
 默认安装到个人配置，以便跨项目切换后继续使用。除非明确需要项目级安装，否则不要添加 `--local`。不要同时加载已安装副本和 `pi -e .` 开发副本。
 
-**分发方式：** 正式版通过 GitHub 标签安装。固定标签不会因 `pi update --extensions` 自动升级到新版本；升级时应移除旧来源，再安装新的已发布标签。详见[安装、更新与卸载指南](https://github.com/De0ta/PiSessionDeck/blob/main/docs/install.md)。
+**更新：** 未指定版本的 npm 来源可通过 `pi update --extensions` 跟进新版本；指定的 npm 版本、Git 标签与提交保持固定，升级时应移除旧来源，再安装目标版本。请只保留一个安装来源。详见[安装、更新与卸载指南](https://github.com/De0ta/PiSessionDeck/blob/main/docs/install.md)。
 
 ## 快速开始
 

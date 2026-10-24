@@ -3,15 +3,21 @@
 ## 前置条件
 
 - Node.js **22.19.0 或更高**。
-- 命令行可用的 **Git**。
+- 若使用 Git 来源，命令行需有可用的 **Git**；npm 来源不需要 Git。
 - 已安装 `@earendil-works/pi-coding-agent` **1.4.x**，且 `pi --version` 能正常运行。
 - Windows 或 Linux；自动化检查覆盖 Windows/Ubuntu × Node 22.19/24。
 
-PiSessionDeck 是 Pi 扩展，通过 GitHub 分发，无需构建或在插件目录手动执行 `npm install`。
+PiSessionDeck 是 Pi 扩展，可通过 npm 或 GitHub 安装，无需构建或在插件目录手动执行 `npm install`。
 
 ## 安装
 
-安装 v1.0.1：
+推荐通过 npm 安装：
+
+```sh
+pi install npm:@link17528/pi-session-deck
+```
+
+固定 npm 版本使用 `pi install npm:@link17528/pi-session-deck@1.0.1`。也可安装 GitHub 标签：
 
 ```sh
 pi install git:github.com/De0ta/PiSessionDeck@v1.0.1
@@ -44,7 +50,20 @@ pi install git:github.com/De0ta/PiSessionDeck@v1.0.1
 
 ## 更新
 
-固定标签或提交的安装不会自动追踪新版本。用 `pi list` 查看当前来源，移除旧来源后安装新版本，再重启 Pi。例如，从 v1.0.0 升级到 v1.0.1：
+未指定版本的 npm 来源可直接更新，然后重启 Pi：
+
+```sh
+pi update --extensions
+```
+
+指定的 npm 版本、Git 标签与提交不会自动追踪新版本。用 `pi list` 查看当前来源，移除旧来源后安装目标版本。例如，切换到 npm 来源：
+
+```sh
+pi remove git:github.com/De0ta/PiSessionDeck@v1.0.1
+pi install npm:@link17528/pi-session-deck
+```
+
+Git 来源从 v1.0.0 升级到 v1.0.1：
 
 ```sh
 pi remove git:github.com/De0ta/PiSessionDeck@v1.0.0
@@ -55,11 +74,13 @@ pi install git:github.com/De0ta/PiSessionDeck@v1.0.1
 
 ## 卸载
 
-按 `pi list` 中的来源移除，例如：
+按 `pi list` 中的实际来源移除，例如：
 
 ```sh
-pi remove git:github.com/De0ta/PiSessionDeck@v1.0.1
+pi remove npm:@link17528/pi-session-deck
 ```
+
+固定 npm 版本或 Git 来源应使用对应的完整声明，例如 `npm:@link17528/pi-session-deck@1.0.1` 或 `git:github.com/De0ta/PiSessionDeck@v1.0.1`。
 
 重启 Pi。会话历史保留；手动标题缓存和置顶元数据位于代理配置下的 `pi-session-viewer` 目录，不再需要时可单独清理。
 

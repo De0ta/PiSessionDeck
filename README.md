@@ -29,7 +29,13 @@ PiSessionDeck brings a full-screen, project-oriented view of your local Pi conve
 
 ## Install
 
-Requires **Node.js 22.19.0+**, **Git**, and **Pi 1.4.x** from `@earendil-works/pi-coding-agent`.
+Requires **Node.js 22.19.0+** and **Pi 1.4.x** from `@earendil-works/pi-coding-agent`.
+
+```sh
+pi install npm:@link17528/pi-session-deck
+```
+
+For a pinned version, use `npm:@link17528/pi-session-deck@1.0.1`. Git installation is also available and requires **Git**:
 
 ```sh
 pi install git:github.com/De0ta/PiSessionDeck@v1.0.1
@@ -47,7 +53,7 @@ Pi loads the TypeScript extension directly: no build step, manual file copying, 
 
 The default personal installation keeps the extension available when changing projects. Avoid `--local` unless you specifically want a project-scoped installation. Do not load an installed copy and `pi -e .` at the same time.
 
-**Distribution:** the stable release is available through GitHub, not npm. A pinned tag does not advance to a new release with `pi update --extensions`; remove the old source and install the new published tag when upgrading. See the [installation, update, and removal guide](https://github.com/De0ta/PiSessionDeck/blob/main/docs/install.md).
+**Updates:** the unversioned npm source follows new releases with `pi update --extensions`. Explicit npm versions, Git tags, and commits stay pinned; remove the old source and install the desired version when upgrading. Keep only one installation source. See the [installation, update, and removal guide](https://github.com/De0ta/PiSessionDeck/blob/main/docs/install.md).
 
 ## Quick start
 
