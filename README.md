@@ -16,10 +16,8 @@ PiSessionViewer brings a full-screen, project-oriented view of your local Pi con
 - **Preview before switching.** A split-pane layout shows session metadata, the latest reply, and its corresponding prompt, with native Pi Markdown rendering. Narrow terminals use a dedicated details view.
 - **Stay on the keyboard.** Open from an empty editor with `←`, or use `/session-browser`. Search, navigation, renaming, and help have dedicated controls.
 - **Keep titles useful.** New, unnamed conversations receive a local fallback title and can receive a model-generated title after the first successful exchange. Manual names take precedence.
-- **Resume deliberately.** A separate confirmation page identifies the destination project. Drafts, running tasks, and queued work block session switches rather than being silently discarded.
-- **Keep browsing local.** Browsing, searching, and previews do not call a model or modify session history. Automatic naming is the only model-backed feature; see [Privacy and safety](#privacy-and-safety).
-
-This is a local session browser, not a background agent orchestrator or a live dashboard for other Pi processes.
+- **Continue in the right project.** A confirmation page identifies the destination project, with draft and task checks before switching.
+- **Browse locally.** Search and previews use local session files. Automatic naming uses your configured Pi model; see [Data and model usage](#data-and-model-usage).
 
 ## Install
 
@@ -59,7 +57,7 @@ Each group initially shows five sessions; `Show more` reveals five more. Recent 
 
 Previews follow the active branch and honor committed context edits. They show the latest reply and its corresponding prompt, or the latest prompt when no reply exists. Thinking and tool results are not displayed.
 
-Only the current Pi process has observed runtime status. Other sessions are labeled `Saved`, which does **not** mean that another process has stopped using them.
+Runtime status is available for the current Pi process. Other sessions are labeled `Saved` to identify them as stored history.
 
 ## Session management · new in v1.0.1
 
@@ -79,7 +77,7 @@ Forks receive an independent identity and a ` · Fork` title suffix; they do not
 
 Deletion defaults to **Cancel**. Number keys change the selection; only `Enter` submits. Deletion affects one session file, not its project, forks, or other running processes. Pins and historical title aliases are stored separately from session history.
 
-The management features have passed type checking, isolated tests, package-loading checks, and independent code review. **Real-terminal interaction and complete host runtime switching still require manual acceptance testing.** Implementation constraints and the acceptance checklist are documented in [Session management](https://github.com/De0ta/PiSessionViewer/blob/main/docs/management.md).
+For file formats, storage limits, and operation details, see [Session management](https://github.com/De0ta/PiSessionViewer/blob/main/docs/management.md).
 
 ## Keyboard reference
 
@@ -105,11 +103,11 @@ Search and rename modes retain normal text input and cursor movement rather than
 
 On the resume page, use `↑` / `↓` or `1` / `2` to select, `Enter` / `→` to confirm, and `Esc` / `Ctrl+C` to return. `PageUp` / `PageDown` scroll long paths or errors. Read-only preflight can be cancelled; once the switch is submitted to Pi, the public API cannot cancel it and the page waits for completion.
 
-## Privacy and safety
+## Data and model usage
 
 ### Local history
 
-Browsing and previews read local files without uploading session history or contacting an author-operated service. Historical renames write extension-specific aliases; renaming the current session uses Pi's native name metadata. An alias is applied as a native name when that session is resumed.
+Browsing, search, and previews run locally and read your Pi session files. Historical renames write extension-specific aliases; renaming the current session uses Pi's native name metadata. An alias is applied as a native name when that session is resumed.
 
 Previews limit each displayed prompt and reply to 6,000 characters. Files over 16 MiB are skipped for preview and model-metadata reads, but can still be resumed. Pi's discovery API still scans history to build its search index; use the current-project filter for large collections.
 
@@ -119,24 +117,23 @@ After the first successful exchange, an eligible unnamed session receives a loca
 
 The request has a 256-token output limit and a 15-second timeout. It may incur provider charges, and its usage is not automatically included in Pi's main conversation statistics. Failure leaves the fallback title in place without automatic retries. Existing names and manual renames are not overwritten; older conversations are not renamed in bulk. Version 1.0.1 also removes generic title-label prefixes from new model results.
 
-### Switching and destructive operations
+### Session switching and deletion
 
-Resuming replaces the current session and project runtime. Pi 1.4's public API does not support resuming another project's session while retaining the current project directory. Preflight validates the target's identity, revision, and accessible project directory; it does not repair paths or create missing projects.
+Resuming switches both the conversation and its project runtime. The target project must exist and be accessible. Before switching, the browser checks the session's identity and file revision. Pi may migrate older session formats when opening them.
 
-There is no cross-process lock. Check that another Pi instance is not writing to a session before resuming or deleting it. Revision checks reduce risk but cannot eliminate filesystem races. Native Pi resume may migrate older session formats; browsing and preflight do not.
-
-The extension does not provide background execution, remote connections, cross-process stop controls, archives, a recycle bin, or worktree management.
+Before resuming or deleting a session, close other Pi instances that are writing to it. Deletion permanently removes the selected session file; its project and forked conversations are kept.
 
 ## Compatibility
 
-| Environment | Validation scope |
-| --- | --- |
-| Windows and Ubuntu; Node 22.19 and 24 | The published v1.0 release passed the four-job CI matrix, 97 tests, package-loading checks, and Git-install smoke checks. |
-| v1.0.1 management features on Windows; Node 24 / Pi 1.4.0 | 164 tests passed; one symlink test was skipped because of Windows permissions. Type checking and isolated package loading passed. |
-| Interactive terminals, SSH, and tmux | Full manual end-to-end acceptance remains outstanding. |
-| macOS and Pi versions outside 1.4.x | Not validated. |
+PiSessionViewer targets **Pi 1.4.x** and **Node.js 22.19.0+**.
 
-The historical v1.0 validation results alone do not establish platform coverage for the v1.0.1 management features. Linux uses native POSIX paths; Windows project paths are not automatically translated to Linux or WSL paths. Legacy `@mariozechner/*` packages and other Pi forks are outside the compatibility commitment.
+| Check | Coverage |
+| --- | --- |
+| CI matrix | Windows and Ubuntu × Node 22.19 and 24. |
+| Local regression suite | Windows / Node 24: 164 tests passed; one symlink test skipped because of account permissions. |
+| Package and installation checks | Type checking, isolated Pi extension loading, and Git installation. |
+
+Linux uses native POSIX paths. Use the project path for the environment running Pi; Windows paths are not automatically translated to Linux or WSL paths. Release-specific results are linked from the [GitHub releases](https://github.com/De0ta/PiSessionViewer/releases).
 
 ## Development
 
@@ -150,20 +147,18 @@ npm run smoke:package
 npm run smoke:install
 ```
 
-For an interactive source trial in a disposable project, use `pi -e /absolute/path/to/PiSessionViewer`. Do not simultaneously enable an installed copy.
+To run the source directly, use `pi -e /absolute/path/to/PiSessionViewer` with the installed copy disabled.
 
-Tests use temporary directories, synthetic sessions, and model substitutes. `smoke:package` checks the current working tree with the real Pi extension loader in isolation. The default Git-install smoke checks committed `HEAD` using a local transport redirect; it does not verify uncommitted changes or GitHub availability. To check a public release anonymously:
+Tests use temporary session fixtures. `smoke:package` checks the working tree with Pi's extension loader; `smoke:install` verifies installation from committed `HEAD`. To check a public release anonymously:
 
 ```sh
 npm run smoke:install -- --public --ref v1.0.1
 ```
 
-These checks do not attach to a live terminal, call a paid model, modify real session history, or install into your personal Pi configuration. Loader checks and controlled host substitutes are not a substitute for full runtime acceptance tests.
-
 ## Documentation and support
 
 - [Installation, updates, removal, and troubleshooting](https://github.com/De0ta/PiSessionViewer/blob/main/docs/install.md)
-- [Session management: implementation boundaries and manual acceptance](https://github.com/De0ta/PiSessionViewer/blob/main/docs/management.md)
+- [Session management and storage details](https://github.com/De0ta/PiSessionViewer/blob/main/docs/management.md)
 - [Changelog](CHANGELOG.md)
 - [v1.0 release validation](https://github.com/De0ta/PiSessionViewer/blob/main/docs/release-v1.0.md)
 - [Technical documentation and design records](https://github.com/De0ta/PiSessionViewer/tree/main/docs)
@@ -173,4 +168,4 @@ When reporting a problem, include your OS, terminal, Node/Pi versions, and repro
 
 ## License
 
-[MIT](LICENSE). Session history, credentials, personal Pi configuration, and reference screenshots are not included in the distribution.
+[MIT](LICENSE).

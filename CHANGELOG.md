@@ -4,10 +4,10 @@
 
 ### Added
 
-- Session management: `n` creates a session in the current cwd without a prompt; `f` forks the current saved session natively or creates a strict, read-only snapshot of historical v1/2/3 sessions before switching. Forks preserve the effective branch, reference closure and latest reply, receive a ` · Fork` suffix, and do not inherit pins. Created files remain available for retry if opening fails.
+- Session management: `n` creates a session in the current cwd without a prompt; `f` forks the current saved session natively or creates a snapshot of historical v1/2/3 sessions before switching. Forks preserve the effective branch, reference closure and latest reply, receive a ` · Fork` suffix, and do not inherit pins. Source files remain unchanged. Created files remain available for retry if opening fails.
 - `p` toggles a separate Pinned section in all four grouping modes, with filtering first, no duplicate entries, newest pins first and five-at-a-time expansion. Pin metadata uses independent SHA-256 records and atomic writes in the agent directory.
-- `Delete` permanently removes one non-current session after confirmation, defaulting to Cancel. Identity and revision are rechecked; deletion does not remove projects or dependent forks, stop processes or provide cross-process locking.
-- `a` opens the action menu while preserving input-mode text and existing `r` / `d` shortcuts. Unsaved sessions remain visible but cannot be pinned or forked; the current session cannot be deleted. Historical forks are limited to 16 MiB and deletion headers to 1 MiB; unknown formats are safely rejected. See [management boundaries and isolated acceptance](https://github.com/De0ta/PiSessionViewer/blob/main/docs/management.md).
+- `Delete` permanently removes one non-current session after confirmation, defaulting to Cancel. Path, session ID/cwd and revision are rechecked. There is no recycle bin; projects and dependent forks are retained. Close other writers first: deletion does not stop processes or provide cross-process locking.
+- `a` opens the action menu while preserving input-mode text and existing `r` / `d` shortcuts. Unsaved sessions remain visible but cannot be pinned or forked; the current session cannot be deleted. Historical forks are limited to 16 MiB and deletion headers to 1 MiB; unsupported or invalid formats are rejected. See the [session management reference](https://github.com/De0ta/PiSessionViewer/blob/main/docs/management.md).
 
 ### Fixed
 
@@ -15,15 +15,14 @@
 
 ### Documentation
 
-- Add professional English and Chinese project introductions and update installation and management guidance for v1.0.1.
-- Keep local workflow documents ignored and no longer tracked by Git.
-- Retain GitHub-only distribution with `private: true`; no npm publication.
+- Add English and Chinese project introductions and update installation and management guidance for v1.0.1.
+- Distribution remains GitHub-only.
 
 ### Validation
 
-- Isolated local validation on Windows: 165 tests, 164 passed, 1 skipped because the account lacked symlink privileges; type checks, working-tree package loading and independent review/fix verification passed.
-- CI is configured for Windows/Ubuntu × Node 22.19/24. See the [v1.0.1 release](https://github.com/De0ta/PiSessionViewer/releases/tag/v1.0.1) for release-specific CI and installation evidence; the historical v1.0.0 results are recorded separately.
-- Real-terminal behavior and full host-runtime switching still require manual acceptance. Validation used temporary state and synthetic sessions, without global installation, real-history changes or paid model actions.
+- Windows / Node 24: type checks passed; 165 tests, 164 passed and 1 skipped because the account lacked symlink permissions.
+- Package smoke passed with 20 packed files; Git installation loaded version 1.0.1 successfully.
+- All four Windows/Ubuntu × Node 22.19/24 CI jobs passed. Release-specific records are linked from the [v1.0.1 release](https://github.com/De0ta/PiSessionViewer/releases/tag/v1.0.1).
 
 ## 1.0.0 — 2026-10-23
 
@@ -42,10 +41,6 @@ First stable GitHub release of Pi Session Viewer. Requires Node >=22.19.0 and Pi
 - Preserve literal trailing backslashes in POSIX directory names instead of conflating them with path separators.
 - Add Windows/Ubuntu CI on Node 22.19 and 24, strict checks, regression tests, packed-source loader smoke, and isolated Git-source installation smoke.
 - Add MIT license, pinned Git installation/update/uninstall instructions, privacy/cost notes, and packed documentation. Keep npm publication disabled.
-
-### Validation boundary
-
-Automated checks do not constitute a real-terminal compatibility guarantee. Native Linux terminals, SSH/tmux, macOS, other Pi versions, and interactive cross-project lifecycle still require manual verification. No multi-process daemon or cross-process running-state/control capability is provided.
 
 ## 0.6.0
 

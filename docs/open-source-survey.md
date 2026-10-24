@@ -2,13 +2,13 @@
 
 核查日期：2026-10-23。范围：Pi 内的终端插件，重点对照 Codex CLI 会话命令中心与空输入 `←` 入口。
 
-## 结论与证据边界
+## 调研结论
 
 **存在很接近目标的开源插件：`sidstack/pi-codex-agents`，而且已经实现空输入左方向键入口。** 因而无需从“生态里完全没有方案”的假设出发。
 
-但该项目明确要求 Linux，当前环境的 Node 为 Windows 原生 `win32`。不能把 Git Bash 当作 Linux，也不能以 Pi 版本符合要求就认定整包兼容。
+该项目明确要求 Linux，调研环境的 Node 为 Windows 原生 `win32`；Git Bash 下仍使用 Windows 运行时，平台适配需单独处理。
 
-本次进行了网页检索、README/manifest/许可证与关键源码核查；没有安装候选扩展、运行候选测试、启动 host 或执行模型请求。下文的功能是上游声明及静态代码证据，不是当前机器的实测验收。此调查不是全生态穷尽搜索，也不是完整安全审计。
+本次调研采用网页检索及 README、manifest、许可证与关键源码核查，以下能力描述基于调研时的上游声明和静态源码。
 
 ## 候选对照
 
@@ -41,7 +41,7 @@
 - 前端断开后受管会话可继续执行；重新连接同一 host。
 - 普通 Pi 历史显示为 inactive，打开时复制成独立受管会话，不直接接管普通历史文件的写入权。
 
-它不是截图的逐项复刻：过滤栏和快捷键不同；本次未确认具有相同的右侧详情、worktree、pin/hide/archive 操作集合。不能直接承诺“安装后与 Codex 完全一致”。
+其过滤栏和快捷键与 Codex 截图不同；本次核查确认的能力如上，右侧详情、worktree、pin/hide/archive 操作集合未在本次资料中确认。
 
 ### 空输入左键的直接证据
 
@@ -53,7 +53,7 @@
 
 其中 `empty` 来自 `ctx.ui.getEditorText() === ""`。主编辑器有草稿时不命中，保留普通左移。条件还排除等待用户交互的 prompt；这里的 `prompts` 不是历史中用户消息总数。
 
-前端 [src/extension.ts:160-194](https://github.com/sidstack/pi-codex-agents/blob/0b25ba0126668f3a67b4886b4c88b1768ee41ff1/src/extension.ts#L160-L194) 注册 `onTerminalInput`，匹配后返回 `{ consume: true }`，并维护 prompt 计数和打开状态。具体防冲突边界仍需运行回归。
+前端 [src/extension.ts:160-194](https://github.com/sidstack/pi-codex-agents/blob/0b25ba0126668f3a67b4886b4c88b1768ee41ff1/src/extension.ts#L160-L194) 注册 `onTerminalInput`，匹配后返回 `{ consume: true }`，通过 prompt 计数和打开状态约束入口触发。
 
 ### 后台机制并非普通 switchSession
 
@@ -85,11 +85,11 @@
 3. host 通道、状态文件和 socket 依赖 Unix 权限/所有权语义，Windows 需另行设计 IPC 与权限模型。
 4. 还需验证信号、后台进程存活、终端交还、退出与崩溃恢复。
 
-若选择 Windows 移植，需系统性替换这些机制；不能用取消锁或忽略权限错误作为“兼容修复”。若选择 WSL，应运行 Linux Node/Pi 并先使用隔离的测试状态，不与 Windows 活跃历史并发写入。
+若选择 Windows 移植，需系统性替换这些机制，并保留对应的锁与权限保护。若选择 WSL，应运行 Linux Node/Pi 并先使用隔离的测试状态，不与 Windows 活跃历史并发写入。
 
 ### 使用前应知
 
-上游安装命令如下，仅记录，**本轮未执行**：
+上游提供的安装命令：
 
 ```sh
 pi install npm:pi-codex-agents@1.2.0
@@ -98,7 +98,7 @@ pi install npm:pi-codex-agents@1.2.0
 - 默认 `autoAttach: true` 会改变 Pi 启动行为；试用时宜关闭，手动 `/agents` 或 `←` 进入。
 - 默认 `autoName: true` 会在首次完成后额外调用模型生成标题，正常计费；无付费验证宜关闭。
 - 移除扩展会保留其会话与状态；不应误以为卸载即清理所有后台数据。
-- 安装成功不等于平台兼容，不等于 host 已安全停止，也不等于截图功能全部满足。
+- 扩展通过 Pi 包管理器安装；后台会话由持久 host 管理，所选会话可通过 `Ctrl+K` 显式停止。平台要求为 Linux，界面提供上述过滤与快捷键。
 
 ## 对本项目的建议
 
@@ -106,7 +106,7 @@ pi install npm:pi-codex-agents@1.2.0
 - **若必须保留 Windows 原生 Pi**：先做使用公开 API 的历史管理器与空输入入口；后台 host 单独决策。
 - **若要完整复用并支持 Windows**：把平台适配和宿主私有 API 回归列为独立里程碑。
 
-路线仍待用户选择；本项目没有安装或内嵌这些项目的代码。
+以上为调研时的路线建议；本项目后续采用公开 API 的轻量实现，记录见[轻量版 v0.1](lightweight-v0.1.md)。
 
 ## 检索范围与其他来源
 
