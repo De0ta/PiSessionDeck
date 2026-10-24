@@ -26,7 +26,7 @@ This is a local session browser, not a background agent orchestrator or a live d
 Requires **Node.js 22.19.0+**, **Git**, and **Pi 1.4.x** from `@earendil-works/pi-coding-agent`.
 
 ```sh
-pi install git:github.com/De0ta/PiSessionViewer@v1.0.0
+pi install git:github.com/De0ta/PiSessionViewer@v1.0.1
 ```
 
 Restart Pi, then run:
@@ -61,9 +61,9 @@ Previews follow the active branch and honor committed context edits. They show t
 
 Only the current Pi process has observed runtime status. Other sessions are labeled `Saved`, which does **not** mean that another process has stopped using them.
 
-## Session management · unreleased
+## Session management · new in v1.0.1
 
-The `main` branch includes the following enhancements. **They are not part of the published `v1.0.0` release.**
+Version **1.0.1** adds session creation, forking, pinning, and permanent deletion to the browser.
 
 | Key | Action |
 | --- | --- |
@@ -79,11 +79,11 @@ Forks receive an independent identity and a ` · Fork` title suffix; they do not
 
 Deletion defaults to **Cancel**. Number keys change the selection; only `Enter` submits. Deletion affects one session file, not its project, forks, or other running processes. Pins and historical title aliases are stored separately from session history.
 
-The enhancements have passed type checking, isolated tests, package-loading checks, and independent code review. **Real-terminal interaction and complete host runtime switching still require manual acceptance testing.** Implementation constraints and the acceptance checklist are documented in [Session management](https://github.com/De0ta/PiSessionViewer/blob/main/docs/management.md).
+The management features have passed type checking, isolated tests, package-loading checks, and independent code review. **Real-terminal interaction and complete host runtime switching still require manual acceptance testing.** Implementation constraints and the acceptance checklist are documented in [Session management](https://github.com/De0ta/PiSessionViewer/blob/main/docs/management.md).
 
 ## Keyboard reference
 
-The table below describes the published `v1.0.0` browser. Additional development-branch controls are listed above.
+The table below covers browser navigation. Session-management controls introduced in v1.0.1 are listed above.
 
 | Key | Action |
 | --- | --- |
@@ -117,7 +117,7 @@ Previews limit each displayed prompt and reply to 6,000 characters. Files over 1
 
 After the first successful exchange, an eligible unnamed session receives a local fallback title, followed by at most one extra request to your configured model. The request includes up to 4,000 characters of the first prompt and 2,000 characters of its final text reply, after committed context edits and wrapper removal. It excludes thinking, tool results, and images.
 
-The request has a 256-token output limit and a 15-second timeout. It may incur provider charges, and its usage is not automatically included in Pi's main conversation statistics. Failure leaves the fallback title in place without automatic retries. Existing names and manual renames are not overwritten; older conversations are not renamed in bulk. The development branch also removes generic title-label prefixes from new model results.
+The request has a 256-token output limit and a 15-second timeout. It may incur provider charges, and its usage is not automatically included in Pi's main conversation statistics. Failure leaves the fallback title in place without automatic retries. Existing names and manual renames are not overwritten; older conversations are not renamed in bulk. Version 1.0.1 also removes generic title-label prefixes from new model results.
 
 ### Switching and destructive operations
 
@@ -132,11 +132,11 @@ The extension does not provide background execution, remote connections, cross-p
 | Environment | Validation scope |
 | --- | --- |
 | Windows and Ubuntu; Node 22.19 and 24 | The published v1.0 release passed the four-job CI matrix, 97 tests, package-loading checks, and Git-install smoke checks. |
-| Management enhancements on Windows; Node 24 / Pi 1.4.0 | 164 tests passed; one symlink test was skipped because of Windows permissions. Type checking and isolated package loading passed. |
+| v1.0.1 management features on Windows; Node 24 / Pi 1.4.0 | 164 tests passed; one symlink test was skipped because of Windows permissions. Type checking and isolated package loading passed. |
 | Interactive terminals, SSH, and tmux | Full manual end-to-end acceptance remains outstanding. |
 | macOS and Pi versions outside 1.4.x | Not validated. |
 
-The historical release results do not establish platform coverage for the unreleased enhancements. Linux uses native POSIX paths; Windows project paths are not automatically translated to Linux or WSL paths. Legacy `@mariozechner/*` packages and other Pi forks are outside the compatibility commitment.
+The historical v1.0 validation results alone do not establish platform coverage for the v1.0.1 management features. Linux uses native POSIX paths; Windows project paths are not automatically translated to Linux or WSL paths. Legacy `@mariozechner/*` packages and other Pi forks are outside the compatibility commitment.
 
 ## Development
 
@@ -155,7 +155,7 @@ For an interactive source trial in a disposable project, use `pi -e /absolute/pa
 Tests use temporary directories, synthetic sessions, and model substitutes. `smoke:package` checks the current working tree with the real Pi extension loader in isolation. The default Git-install smoke checks committed `HEAD` using a local transport redirect; it does not verify uncommitted changes or GitHub availability. To check a public release anonymously:
 
 ```sh
-npm run smoke:install -- --public --ref v1.0.0
+npm run smoke:install -- --public --ref v1.0.1
 ```
 
 These checks do not attach to a live terminal, call a paid model, modify real session history, or install into your personal Pi configuration. Loader checks and controlled host substitutes are not a substitute for full runtime acceptance tests.

@@ -2,28 +2,32 @@
 
 ## 前置条件
 
-- Node.js **22.19.0或更高**；CI覆盖22.19和24系列。
+- Node.js **22.19.0或更高**；CI配置覆盖Windows/Ubuntu与22.19、24系列，具体执行结果见[版本发布记录](https://github.com/De0ta/PiSessionViewer/releases/tag/v1.0.1)。
 - **Git**可在命令行访问。
 - `@earendil-works/pi-coding-agent` **1.4.x**已经安装，`pi --version`能正常运行。旧版`@mariozechner/*`、其他同名工具或Pi分支不属于兼容性承诺。
 - Windows或Linux；macOS尚未验证。真实终端、SSH/tmux、Windows Terminal等交互环境仍需人工验收，不能从单元测试推导全兼容。
 
 本插件不提供独立CLI，不需要构建，不要求在插件目录手动执行`npm install`。自动命名复用你已有的Pi模型配置和凭据；不会使用作者账户或中转服务器。
 
-## 安装正式版
+## 安装正式版 v1.0.1
 
 ```sh
-pi install git:github.com/De0ta/PiSessionViewer@v1.0.0
+pi install git:github.com/De0ta/PiSessionViewer@v1.0.1
 ```
 
-重启Pi；输入`/session-browser`，或在完全空白的输入框按`←`。这是Pi命令，**不是**`npm install -g`；本项目没有发布npm包。
+重启Pi；输入`/session-browser`，或在完全空白的输入框按`←`。这是Pi命令，**不是**`npm install -g`；本项目仅通过GitHub分发，保留`private: true`，不发布npm包。
 
 默认安装到个人代理配置，跨项目切换后仍能启用。不加`--local`，避免只在某个项目可用。Pi会修改个人配置以记录插件来源，这是用户主动安装的正常行为，不是浏览会话时的操作。
 
 进入浏览器后：`F3`搜索，`Tab`切换范围，`g`切换分组，`↑/↓`选择，`Enter/→`进入恢复页，`r`手动改名，`Esc`退出。恢复页会明确确认，再由Pi切换目标项目；它不支持保持当前项目目录来恢复另一个项目的会话。
 
+v1.0.1 管理操作：`n`在当前cwd无prompt新建，`f`分叉已保存会话，`p`切换置顶，`Delete`永久删除单个非当前会话，`a`打开操作菜单。搜索/改名输入模式中字母仍作为文本；旧`d`详情键保留。置顶在四种分组中独立显示，仍受搜索/项目过滤。未落盘行显示`Unsaved`，不能pin/fork，也不能删除当前会话。
+
+新建/分叉/恢复均受任务、队列和草稿保护；分叉不继承置顶，创建后打开失败会保留文件，先刷新或重试，避免重复创建。历史分叉限16 MiB，删除头部限1 MiB，未知格式安全拒绝。删除默认Cancel，数字只选择、Enter才确认；不可撤销，不删除项目、不级联Fork，也不停止其他进程或提供跨进程锁。详见[管理边界与隔离验收](https://github.com/De0ta/PiSessionViewer/blob/main/docs/management.md)。
+
 ## 更新
 
-标签固定安装提供可复现版本，不自动追踪新版本。用`pi list`确认来源；安装未来版本时，例如将下面的`v1.0.1`替换为**已经发布**的标签：
+标签固定安装提供可复现版本，不自动追踪新版本。用`pi list`确认来源；从v1.0.0升级到v1.0.1时，先移除旧来源再安装新标签：
 
 ```sh
 pi remove git:github.com/De0ta/PiSessionViewer@v1.0.0
@@ -35,22 +39,25 @@ pi install git:github.com/De0ta/PiSessionViewer@v1.0.1
 ## 卸载
 
 ```sh
-pi remove git:github.com/De0ta/PiSessionViewer@v1.0.0
+pi remove git:github.com/De0ta/PiSessionViewer@v1.0.1
 ```
 
-重启Pi。卸载不应删除你的Pi会话；本插件的本地手动标题缓存可能仍留在个人代理配置下的`pi-session-viewer`目录，可在确认不再需要后自行清理。不要删除整个代理配置目录。
+重启Pi。卸载不应删除你的Pi会话；本插件的本地手动标题缓存和置顶元数据可能仍留在个人代理配置下的`pi-session-viewer`目录，可在确认不再需要后自行清理。不要删除整个代理配置目录。
 
 ## 隐私与费用
 
 - 浏览/搜索/预览读取本机历史，不请求模型，不上传整个历史，不连接作者服务器。
 - 首轮成功交互后可能额外请求当前模型一次生成标题，输入是经上下文编辑解析并剥除技能包装后的首轮提问/最终回复片段，各有长度上限；这仍会发送给**你配置的模型提供方**并产生费用，独立请求用量不自动计入Pi主对话统计。失败或超时保留本地标题。
+- 新建/分叉/置顶/删除和菜单操作本身不请求模型；随后发送消息及自动命名仍可能产生正常模型费用。标题前缀清理只处理新结果，不重命名旧标题、不额外请求模型。
 - 手动标题优先。F2不再改名；使用`r`。
 - 恢复前清空或保存编辑器草稿，并确保没有其他进程写同一会话；本插件不能检测所有跨进程活跃状态。
 - 标题是数据，不代表安全审查结果。不要从不可信来源导入会话；本版已过滤历史模型/推理字段中的终端控制序列。
 
 ## 平台与故障排查
 
-Windows/Ubuntu×Node22.19/24四组CI、97测试与两种smoke已通过，禁用Git凭据的匿名固定提交安装也已验证。Linux真实终端交互仍待人工验收，不能由此承诺所有终端、SSH或tmux组合。
+v1.0.0历史验证中，Windows/Ubuntu×Node22.19/24四组CI、97测试与两种smoke已通过，禁用Git凭据的匿名固定提交安装也已验证；这些不是v1.0.1的通过结果。
+
+v1.0.1 Windows本地隔离验证为165项测试、164通过、1项因符号链接权限跳过；类型检查、工作树打包加载和独立审查修复复核通过。对应CI与匿名安装证据见[v1.0.1发布记录](https://github.com/De0ta/PiSessionViewer/releases/tag/v1.0.1)，不以旧版结果替代本版验证。真实终端与完整宿主运行时切换仍待人工验收，不能由自动化结果承诺所有终端、SSH或tmux组合。
 
 Linux应使用原生Node/Pi、Linux项目目录和对应本机会话。Windows路径不会自动映射成WSL/Linux路径；缺失目录会在恢复预检时拒绝，不伪造目录或改写历史头。文件名中的合法POSIX反斜杠按普通字符保留。
 
@@ -75,6 +82,6 @@ pi -e .
 
 前两个smoke只在临时目录中检查发布包和Git安装/加载，不附着终端、不请求模型、不恢复真实历史、不修改个人全局安装。Git smoke测试已提交HEAD，不包含未提交修改，默认将Git远程传输重定向到本地仓库；它不证明GitHub公网可达。
 
-仓库公开后，可执行`npm run smoke:install -- --public --ref v1.0.0`检查真实匿名GitHub固定标签安装。该模式禁用系统/全局Git配置和凭据helper，仍使用临时Pi配置，不改用户全局安装。
+v1.0.1标签在GitHub可用后，可执行`npm run smoke:install -- --public --ref v1.0.1`检查真实匿名GitHub固定标签安装。该模式禁用系统/全局Git配置和凭据helper，仍使用临时Pi配置，不改用户全局安装。
 
 `pi -e .`仅本次启动试用，会进入真实交互环境；请在可丢弃项目中手工验收，并且不要同时启用已安装版。
