@@ -32,6 +32,7 @@ test("宽屏双栏、中英文宽度、窄屏详情、搜索、Enter恢复", asy
     assert.ok(lines.every((line) => visibleWidth(line) <= width), `overflow at ${width}`);
     assert.equal(lines.length, 24);
   }
+  assert.match(browser.render(120)[0]!, /^PiSessionDeck/);
   assert.ok(browser.render(120).some((line) => line.includes("│")));
   browser.handleInput("\x1b[13~"); // F3 opens search explicitly
   browser.handleInput("needle");

@@ -1,9 +1,9 @@
 {
-  "name": "pi-session-viewer",
+  "name": "pi-session-deck-17528",
   "version": "1.0.1",
   "private": true,
   "type": "module",
-  "description": "Lightweight session browser extension for Pi",
+  "description": "Keyboard-first session browsing and management for Pi",
   "license": "MIT",
   "homepage": "https://github.com/De0ta/PiSessionViewer#readme",
   "bugs": {

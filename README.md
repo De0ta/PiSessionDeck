@@ -1,4 +1,4 @@
-# PiSessionViewer
+# PiSessionDeck
 
 **English** | [简体中文](README.zh-CN.md)
 
@@ -8,16 +8,24 @@
 [![GitHub release](https://img.shields.io/github/v/release/De0ta/PiSessionViewer)](https://github.com/De0ta/PiSessionViewer/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-PiSessionViewer brings a full-screen, project-oriented view of your local Pi conversations into the terminal. Search across sessions, preview the latest exchange, and return to a conversation without leaving Pi.
+PiSessionDeck brings a full-screen, project-oriented view of your local Pi conversations into the terminal. Search across sessions, preview the latest exchange, and return to a conversation without leaving Pi.
 
-## Why PiSessionViewer
+## Why PiSessionDeck
 
 - **Find conversations across projects.** Group sessions by project, recent activity, model, or status. Search titles, project paths, session IDs, and message text; multiple terms use AND matching.
 - **Preview before switching.** A split-pane layout shows session metadata, the latest reply, and its corresponding prompt, with native Pi Markdown rendering. Narrow terminals use a dedicated details view.
 - **Stay on the keyboard.** Open from an empty editor with `←`, or use `/session-browser`. Search, navigation, renaming, and help have dedicated controls.
+- **Organize your work.** Create conversations, fork a branch to explore another approach, pin frequently used sessions, and remove histories you no longer need.
 - **Keep titles useful.** New, unnamed conversations receive a local fallback title and can receive a model-generated title after the first successful exchange. Manual names take precedence.
 - **Continue in the right project.** A confirmation page identifies the destination project, with draft and task checks before switching.
 - **Browse locally.** Search and previews use local session files. Automatic naming uses your configured Pi model; see [Data and model usage](#data-and-model-usage).
+
+## Typical workflows
+
+- **Pick up unfinished work.** Find a project or topic, review the latest exchange, and resume in the conversation's original project. This is useful when moving between repositories or returning after a break.
+- **Explore an alternative without losing the original.** Select a conversation and press `f` to copy its effective branch into an independent session. Continue from the latest reply while keeping the source available for comparison.
+- **Keep recurring work close at hand.** Give a session a recognizable title with `r`, then pin it with `p`. The `Pinned` section stays separate from the regular groups as you change how the list is organized.
+- **Clean up completed work.** Preview a saved conversation before deleting it. The confirmation dialog identifies the session; its project directory and forked conversations remain in place.
 
 ## Install
 
@@ -51,17 +59,43 @@ The default personal installation keeps the extension available when changing pr
 
 Press `Esc` to return without resuming. Returning from the confirmation page preserves your search, grouping, expanded groups, selection, and details scroll position.
 
+### Interface layout
+
+| Area | What it shows |
+| --- | --- |
+| Header | The current grouping mode, project scope, and number of matching sessions. |
+| Session list | Grouped conversations, their titles, status, and last-update information. |
+| Details pane | Metadata for the selected conversation, its latest reply, and the corresponding prompt. |
+| Shortcut help | Press `?` to see the available navigation and management controls. |
+
+Wide terminals show the list and details side by side. On narrow terminals, select a session and press `d` to open its details, then `←` to return. Use `Shift+↑` / `Shift+↓` to scroll a long reply.
+
 ### Grouping and previews
 
-Each group initially shows five sessions; `Show more` reveals five more. Recent activity uses six non-overlapping intervals: under 5 hours, 5 hours–1 day, 1–7 days, 7–30 days, 30–90 days, and 90 days or more. Model groups use provider and model ID.
+Press `g` to cycle through four views:
+
+| View | Useful for |
+| --- | --- |
+| Project | Returning to conversations associated with the same working directory. |
+| Recent | Finding work by how recently the conversation was updated. |
+| Model | Reviewing conversations by provider and model ID. |
+| Status | Separating the current session's runtime state from saved history. |
+
+Each group initially shows five sessions; `Show more` reveals five more. Recent activity uses six non-overlapping intervals: under 5 hours, 5 hours–1 day, 1–7 days, 7–30 days, 30–90 days, and 90 days or more. Pinned sessions appear in their own section and still respect the current scope and search.
 
 Previews follow the active branch and honor committed context edits. They show the latest reply and its corresponding prompt, or the latest prompt when no reply exists. Thinking and tool results are not displayed.
 
 Runtime status is available for the current Pi process. Other sessions are labeled `Saved` to identify them as stored history.
 
-## Session management · new in v1.0.1
+### Finding a conversation
 
-Version **1.0.1** adds session creation, forking, pinning, and permanent deletion to the browser.
+Press `F3` and enter a topic, project-path fragment, session ID, or text from the conversation. Search is case-insensitive, and all whitespace-separated terms must match. For example, `login api` narrows the list to sessions matching both terms. Press `Tab` to search only the current project, or switch back to all projects.
+
+Search and grouping work together. Returning from a resume confirmation page keeps the query, selection, expanded groups, and preview scroll position, so you can inspect several candidates without starting over.
+
+## Session management
+
+Create, fork, pin, rename, and delete conversations directly from the browser.
 
 | Key | Action |
 | --- | --- |
@@ -81,7 +115,7 @@ For file formats, storage limits, and operation details, see [Session management
 
 ## Keyboard reference
 
-The table below covers browser navigation. Session-management controls introduced in v1.0.1 are listed above.
+The table below covers browser navigation. Session-management controls are listed above.
 
 | Key | Action |
 | --- | --- |
@@ -115,7 +149,7 @@ Previews limit each displayed prompt and reply to 6,000 characters. Files over 1
 
 After the first successful exchange, an eligible unnamed session receives a local fallback title, followed by at most one extra request to your configured model. The request includes up to 4,000 characters of the first prompt and 2,000 characters of its final text reply, after committed context edits and wrapper removal. It excludes thinking, tool results, and images.
 
-The request has a 256-token output limit and a 15-second timeout. It may incur provider charges, and its usage is not automatically included in Pi's main conversation statistics. Failure leaves the fallback title in place without automatic retries. Existing names and manual renames are not overwritten; older conversations are not renamed in bulk. Version 1.0.1 also removes generic title-label prefixes from new model results.
+The request has a 256-token output limit and a 15-second timeout. It may incur provider charges, and its usage is not automatically included in Pi's main conversation statistics. Failure leaves the fallback title in place without automatic retries. Existing names and manual renames are not overwritten; older conversations are not renamed in bulk. Generic title-label prefixes are removed from model-generated titles.
 
 ### Session switching and deletion
 
@@ -125,7 +159,7 @@ Before resuming or deleting a session, close other Pi instances that are writing
 
 ## Compatibility
 
-PiSessionViewer targets **Pi 1.4.x** and **Node.js 22.19.0+**.
+PiSessionDeck targets **Pi 1.4.x** and **Node.js 22.19.0+**.
 
 | Check | Coverage |
 | --- | --- |
@@ -138,8 +172,8 @@ Linux uses native POSIX paths. Use the project path for the environment running 
 ## Development
 
 ```sh
-git clone https://github.com/De0ta/PiSessionViewer.git
-cd PiSessionViewer
+git clone https://github.com/De0ta/PiSessionViewer.git PiSessionDeck
+cd PiSessionDeck
 npm ci
 npm run check
 npm test
@@ -147,7 +181,7 @@ npm run smoke:package
 npm run smoke:install
 ```
 
-To run the source directly, use `pi -e /absolute/path/to/PiSessionViewer` with the installed copy disabled.
+To run the source directly, use `pi -e /absolute/path/to/PiSessionDeck` with the installed copy disabled.
 
 Tests use temporary session fixtures. `smoke:package` checks the working tree with Pi's extension loader; `smoke:install` verifies installation from committed `HEAD`. To check a public release anonymously:
 
@@ -160,7 +194,6 @@ npm run smoke:install -- --public --ref v1.0.1
 - [Installation, updates, removal, and troubleshooting](https://github.com/De0ta/PiSessionViewer/blob/main/docs/install.md)
 - [Session management and storage details](https://github.com/De0ta/PiSessionViewer/blob/main/docs/management.md)
 - [Changelog](CHANGELOG.md)
-- [v1.0 release validation](https://github.com/De0ta/PiSessionViewer/blob/main/docs/release-v1.0.md)
 - [Technical documentation and design records](https://github.com/De0ta/PiSessionViewer/tree/main/docs)
 - [Report an issue](https://github.com/De0ta/PiSessionViewer/issues)
 

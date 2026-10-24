@@ -464,7 +464,7 @@ export class SessionBrowser implements Component, Focusable {
     const searchText = this.renaming || this.searchOpen ? activeInput.render(Math.max(1, leftWidth - 9)).join("") : "";
     const searchBar = cell(paint(label, COLORS.blue, true) + searchText, leftWidth, COLORS.text, COLORS.search);
     const lines = [
-      cell(`Session manager    Group: ${{ project: "Project", recent: "Recent", model: "Model", status: "Status" }[this.groupMode]}  g`, width, COLORS.white, COLORS.bg, true),
+      cell(`PiSessionDeck    Group: ${{ project: "Project", recent: "Recent", model: "Model", status: "Status" }[this.groupMode]}  g`, width, COLORS.white, COLORS.bg, true),
       cell(`${this.scope === "all" ? "[All]" : " All "}  ${this.scope === "project" ? "[This project]" : " This project "}    ${this.visibleSessions().length} tasks    ${paint("Tab", COLORS.white)}${paint(" filter · ", COLORS.dim)}${paint("F3", COLORS.white)}${paint(" search", COLORS.dim)}`, width, COLORS.dim),
       ...(this.renaming || this.searchOpen ? [searchBar + (wide ? cell(" │ ", 3, COLORS.border) + cell("", rightWidth) : "")] : []),
       cell("─".repeat(width), width, COLORS.border),

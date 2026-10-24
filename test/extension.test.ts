@@ -112,7 +112,7 @@ test("已有编辑器不被覆盖；非UI命令直接退出", async () => harnes
   h.ctx.ui.setEditorComponent(other);
   await h.emit("session_start");
   assert.equal(h.factory, other);
-  assert.match(h.notices[0]!, /已有自定义编辑器/);
+  assert.match(h.notices[0]!, /PiSessionDeck.*已有自定义编辑器/);
   h.state.hasUI = false;
   await h.command.handler("", h.ctx);
   assert.equal(h.state.customCalls, 0);
@@ -189,7 +189,7 @@ test("原生覆盖层关闭后恢复原编辑器焦点与底层内容", () => {
   const tui = new TuiMainScreen(terminal); // Never write to or attach stdin of the real terminal.
   tui.requestRender = () => {};
   const editor = { focused: false, render: () => ["UNCHANGED DRAFT"], handleInput() {}, invalidate() {} };
-  const overlay = { focused: false, render: () => ["Session manager"], handleInput() {}, invalidate() {} };
+  const overlay = { focused: false, render: () => ["PiSessionDeck"], handleInput() {}, invalidate() {} };
   tui.addChild(editor);
   tui.setFocus(editor);
   const handle = tui.showOverlay(overlay, { width: "100%", maxHeight: "100%", row: 0, col: 0, margin: 0 });

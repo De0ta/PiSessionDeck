@@ -14,7 +14,7 @@ import { captureSessionRevision, deleteSession, forkHistorySession } from "./man
 const COMMAND = "session-browser";
 type EditorFactory = NonNullable<ReturnType<ExtensionContext["ui"]["getEditorComponent"]>>;
 
-export default function sessionViewer(pi: ExtensionAPI): void {
+export default function sessionDeck(pi: ExtensionAPI): void {
   let browser: SessionBrowser | undefined;
   let screen: ResumeFlow | undefined;
   let opening = false;
@@ -27,7 +27,7 @@ export default function sessionViewer(pi: ExtensionAPI): void {
   let outcome = "completed";
 
   pi.registerCommand(COMMAND, {
-    description: "按项目、时间、模型或状态浏览、搜索并恢复 Pi 历史会话",
+    description: "PiSessionDeck：按项目、时间、模型或状态浏览、搜索并管理 Pi 会话",
     handler: async (_args, ctx) => {
       if (ctx.mode !== "tui" || !ctx.hasUI || opening || shuttingDown) return;
       opening = true;
@@ -91,7 +91,7 @@ export default function sessionViewer(pi: ExtensionAPI): void {
           return screen;
         }, { overlay: true, overlayOptions: { width: "100%", maxHeight: "100%", row: 0, col: 0, margin: 0, visible: guard.visible }, onHandle: guard.onHandle });
       } catch (error) {
-        if (!shuttingDown) ctx.ui.notify(`会话浏览器：${safeText(String(error))}`, "error");
+        if (!shuttingDown) ctx.ui.notify(`PiSessionDeck：${safeText(String(error))}`, "error");
       } finally {
         screen?.close();
         screen = undefined;
@@ -145,7 +145,7 @@ export default function sessionViewer(pi: ExtensionAPI): void {
     };
     const existing = ctx.ui.getEditorComponent();
     if (existing && existing !== editorFactory) {
-      ctx.ui.notify("PiSessionViewer 未替换已有自定义编辑器；请使用 /session-browser。", "info");
+      ctx.ui.notify("PiSessionDeck 未替换已有自定义编辑器；请使用 /session-browser。", "info");
       await importAlias().catch(() => {});
       return;
     }

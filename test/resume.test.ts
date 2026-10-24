@@ -50,7 +50,7 @@ test("同目录与跨目录为两种独立页面，深灰仅包内容块、下�
     const targetLine = labelLines.find((line) => line.trimStart().startsWith("Session "))!;
     const currentLine = labelLines.find((line) => line.trimStart().startsWith(same ? "Directory " : "Current "))!;
     assert.equal(targetLine.indexOf(same ? "目标会话" : target.cwd), currentLine.indexOf(cwd));
-    assert.equal(text.includes("Session manager"), false);
+    assert.equal(text.includes("PiSessionDeck"), false);
     assert.equal(text.includes("Always use"), false);
     assert.ok(lines.some((line) => line.includes("48;2;38;38;38")));
     assert.ok(lines.some((line) => line.includes("48;2;101;158;232")));
