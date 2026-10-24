@@ -40,6 +40,8 @@ test("当前模型单次独立命名，先存本地回退、后台完成后更�
   assert.equal(req.model, model);
   assert.equal(req.context.messages.length, 1);
   assert.equal(req.context.tools, undefined);
+  assert.match(req.context.systemPrompt ?? "", /Output ONLY the topic itself/);
+  assert.match(req.context.systemPrompt ?? "", /Never add a label, category or prefix/);
   const input = JSON.stringify(req.context);
   assert.match(input, /请优化会话浏览器/);
   assert.match(input, /已调整键盘导航和详情展示/);
@@ -127,6 +129,11 @@ test("超长资源包装先完整移除再限长，不把资源内容放入回�
 
 test("模型标题规范化及Unicode有界，不接受多行说明/标签", () => {
   assert.equal(cleanModelTitle('“标题：修复键盘导航”'), "修复键盘导航");
+  for (const prefix of ["短会话标题-", "简短会话标题 — ", "会话标题：", "对话标题: ", "Short session title: ", "Session title - ", "Title: 标题："]) {
+    assert.equal(cleanModelTitle(prefix + "修复键盘导航"), "修复键盘导航");
+  }
+  assert.equal(cleanModelTitle("短会话标题-"), undefined);
+  assert.equal(cleanModelTitle("标题生成接口修复"), "标题生成接口修复");
   assert.equal(cleanModelTitle("line one\nline two"), undefined);
   assert.equal(cleanModelTitle("<tag>title</tag>"), undefined);
   assert.equal(Array.from(cleanModelTitle("😀".repeat(60))!).length, 43);

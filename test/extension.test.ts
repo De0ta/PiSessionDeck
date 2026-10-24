@@ -1,18 +1,24 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { discoverAndLoadExtensions, SessionManager, type CustomEditor, type ExtensionCommandContext, type SessionInfo } from "@earendil-works/pi-coding-agent";
 import { KeybindingsManager, ProcessTerminal, TuiMainScreen, TUI_KEYBINDINGS, type EditorTheme } from "@earendil-works/pi-tui";
-import { deferred, session, tick } from "./fixtures.ts";
+import { deferred, header, jsonl, session, tick, user } from "./fixtures.ts";
 import { createFocusGuard } from "../src/overlay.ts";
 import type { ResumeFlow } from "../src/resume.ts";
+import { createTitleStore } from "../src/titles.ts";
 
 type EditorFactory = NonNullable<ReturnType<ExtensionCommandContext["ui"]["getEditorComponent"]>>;
 async function harness(run: (state: Awaited<ReturnType<typeof setup>>) => Promise<void>) {
   const dir = await mkdtemp(join(tmpdir(), "pi-session-viewer-extension-"));
-  try { await run(await setup(dir)); } finally { await rm(dir, { recursive: true, force: true }); }
+  const previousAgent = process.env.PI_CODING_AGENT_DIR;
+  process.env.PI_CODING_AGENT_DIR = join(dir, "agent");
+  try { await run(await setup(dir)); } finally {
+    if (previousAgent === undefined) delete process.env.PI_CODING_AGENT_DIR; else process.env.PI_CODING_AGENT_DIR = previousAgent;
+    await rm(dir, { recursive: true, force: true });
+  }
 }
 async function setup(dir: string) {
   const cwd = join(dir, "project");
@@ -29,6 +35,7 @@ async function setup(dir: string) {
   let factory: EditorFactory | undefined;
   const notices: string[] = [];
   const switches: string[] = [];
+  const lifecycle = { newSessions: 0, forks: [] as { id: string; position?: string }[] };
   const order: string[] = [];
   const state = { idle: true, pending: false, draft: "", hasUI: true, mode: "tui", customCalls: 0 };
   const manager = SessionManager.inMemory(cwd);
@@ -47,11 +54,13 @@ async function setup(dir: string) {
       confirm: async () => { throw new Error("Native confirmation dialogs must not be used"); },
     },
     switchSession: async (path: string) => { order.push("switch"); switches.push(path); return { cancelled: false }; },
+    newSession: async () => { lifecycle.newSessions++; return { cancelled: false }; },
+    fork: async (id: string, options?: { position?: string }) => { lifecycle.forks.push({ id, position: options?.position }); return { cancelled: false }; },
   } as unknown as ExtensionCommandContext; // Deliberately partial host double, not a production context cast.
   const emit = async (event: string, fields: Record<string, unknown> = {}) => {
     for (const handler of extension.handlers.get(event) ?? []) await handler({ type: event, entries: [], ...fields }, ctx);
   };
-  return { state, ctx, manager, emit, notices, switches, order, sent, command, handlers: extension.handlers, get factory() { return factory; } };
+  return { state, ctx, manager, emit, notices, switches, lifecycle, order, sent, command, handlers: extension.handlers, get factory() { return factory; } };
 }
 
 test("真实Pi加载器加载入口；编辑器桥接已注册命令，保留文字与原生提交", async () => harness(async (h) => {
@@ -309,4 +318,74 @@ test("晚于本扩展的boundary删除在自动命名前提交", async () => har
   await h.emit("agent_settled", { aborted: false });
   assert.equal(h.manager.getSessionName(), undefined);
   assert.ok(!h.manager.getEntries().some((e) => e.type === "session_info"));
+}));
+
+async function manage(h: Awaited<ReturnType<typeof setup>>, sessions: SessionInfo[], run: (flow: ResumeFlow) => Promise<void>): Promise<void> {
+  const oldList = SessionManager.listAll;
+  SessionManager.listAll = async () => sessions;
+  h.ctx.ui.custom = (async (factory) => {
+    const tui = new TuiMainScreen(new ProcessTerminal()); tui.requestRender = () => {};
+    const theme = { style: (text: string) => text, fg: (_: string, text: string) => text, bold: (text: string) => text };
+    const keys = new KeybindingsManager(TUI_KEYBINDINGS);
+    const flow = factory(tui, theme as unknown as Parameters<typeof factory>[1], keys as unknown as Parameters<typeof factory>[2], () => {}) as ResumeFlow;
+    await tick(); await tick();
+    await run(flow);
+  }) as ExtensionCommandContext["ui"]["custom"];
+  try { await h.command!.handler("", h.ctx); } finally { SessionManager.listAll = oldList; }
+}
+async function waitFor(check: () => boolean): Promise<void> {
+  for (let attempt = 0; attempt < 200 && !check(); attempt++) await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.ok(check(), "asynchronous management operation completed");
+}
+
+test("入口新建保持草稿/队列保护，成功不发送模型消息；宿主shutdown后不访问旧状态", async () => harness(async (h) => {
+  await manage(h, [], async (flow) => {
+    h.state.draft = "save me"; flow.handleInput("n"); await tick();
+    assert.equal(h.lifecycle.newSessions, 0); assert.equal(h.state.draft, "save me"); flow.handleInput("\x1b");
+    h.state.draft = ""; h.state.pending = true; flow.handleInput("n"); await tick();
+    assert.equal(h.lifecycle.newSessions, 0); flow.handleInput("\x1b"); h.state.pending = false;
+    h.ctx.newSession = async () => {
+      h.lifecycle.newSessions++;
+      await h.emit("session_shutdown", { reason: "new" });
+      h.ctx.isIdle = () => { throw new Error("outgoing runtime accessed"); };
+      return { cancelled: false };
+    };
+    flow.handleInput("n"); await tick(); await tick();
+    assert.equal(h.lifecycle.newSessions, 1); assert.deepEqual(h.sent, []);
+  });
+}));
+
+test("入口当前Fork使用at保留末次回复，新runtime追加Fork名称且不再请求标题模型", async () => harness(async (h) => {
+  const file = join(h.ctx.cwd, "current.jsonl"); h.manager.getSessionFile = () => file;
+  const id = h.manager.appendMessage({ role: "user", content: "当前提问", timestamp: Date.now() });
+  await writeFile(file, jsonl(h.manager.getHeader(), ...h.manager.getEntries()));
+  const current = session(h.manager.getSessionId(), { path: file, cwd: h.ctx.cwd });
+  await manage(h, [current], async (flow) => {
+    flow.handleInput("f"); flow.handleInput("\r"); await waitFor(() => h.lifecycle.forks.length === 1);
+    assert.deepEqual(h.lifecycle.forks, [{ id, position: "at" }]); assert.deepEqual(h.switches, []);
+  });
+  h.manager.appendSessionInfo("Manual source");
+  await h.emit("session_start", { reason: "fork" });
+  assert.equal(h.manager.getSessionName(), "Manual source · Fork");
+  await h.emit("agent_settled", { aborted: false });
+  assert.equal(h.manager.getSessionName(), "Manual source · Fork"); assert.deepEqual(h.sent, []);
+}));
+
+test("入口历史Fork只读创建一次并直接打开副本，宿主拒绝后再次确认复用副本", async () => harness(async (h) => {
+  const file = join(h.ctx.cwd, "history.jsonl");
+  const original = jsonl({ ...header, id: "history", cwd: h.ctx.cwd }, user("u", null, "source prompt"));
+  await writeFile(file, original);
+  const source = session("history", { path: file, cwd: h.ctx.cwd });
+  await createTitleStore().write(source, "Viewer alias");
+  h.ctx.switchSession = async (path) => { h.switches.push(path); return { cancelled: true }; };
+  await manage(h, [source], async (flow) => {
+    for (let i = 0; i < 5 && flow.browser.selected?.id !== source.id; i++) flow.handleInput("\x1b[B");
+    assert.equal(flow.browser.selected?.id, source.id);
+    flow.handleInput("f"); flow.handleInput("\r"); await waitFor(() => h.switches.length === 1 && flow.render(120).join("\n").includes("已创建未打开"));
+    const created = h.switches[0]!; assert.notEqual(created, file); assert.equal(await readFile(file, "utf8"), original);
+    assert.match(await readFile(created, "utf8"), /Viewer alias · Fork/);
+    flow.handleInput("\r"); await waitFor(() => h.switches.length === 2 && flow.render(120).join("\n").includes("已创建未打开"));
+    assert.equal(h.switches[1], created); assert.deepEqual(h.lifecycle.forks, []); assert.equal(h.lifecycle.newSessions, 0);
+    flow.handleInput("\x1b");
+  });
 }));

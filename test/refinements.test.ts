@@ -199,7 +199,9 @@ test("历史重命名仅写独立别名，当前重命名走原生回调；别�
     const store = createTitleStore(join(dir, "titles"));
     const memory = SessionManager.inMemory(cwd);
     const current = join(dir, "current.jsonl");
-    const ctx = { cwd, sessionManager: { getSessionDir: () => dir, getSessionFile: () => current, getSessionName: () => memory.getSessionName() } } as unknown as ExtensionContext;
+    const ctx = { cwd, sessionManager: { getSessionDir: () => dir, getSessionFile: () => current, getSessionName: () => memory.getSessionName(),
+      getHeader: () => memory.getHeader(), getSessionId: () => memory.getSessionId(), getBranch: () => memory.getBranch(),
+      buildSessionProjection: () => memory.buildSessionProjection() } } as unknown as ExtensionContext;
     const repository = createRepository(ctx, (title) => { memory.appendSessionInfo(title); }, store);
     const saved = session(header.id, { path: file });
     await repository.rename!(saved, "Manual alias");

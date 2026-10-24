@@ -13,6 +13,16 @@
 - 打包白名单16文件，包含源码、许可证、变更记录与安装指南；真实Pi加载器从临时解包目录直接按manifest加载。Git安装smoke调用实际CLI，临时配置和本地Git传输，不使用用户状态或模型。
 - Windows/Ubuntu×Node22.19/24四组CI已全部通过（run39999387318）；97测试和两种smoke通过。禁用Git凭据的匿名固定提交实际安装/加载也通过；固定标签匿名安装及Release附件SHA256回验也已通过；最终发布提交CI为run39999968949。人工终端端到端未验收。独立审查无发布阻塞，7提交/112文件对象未发现凭据或真实会话/截图。
 
+## M3 已授权边界（Unreleased，待人工验收）
+
+- `n` 当前 cwd 新建，不带 prompt；`f` 当前用 `ctx.fork(leaf, { position: 'at' })`，在新 runtime 的 `session_start`（reason 为 fork）追加 ` · Fork`，不继承 pins。
+- 历史 Fork 不先恢复源：只读严格解析 v1/2/3，保留有效分支、引用闭包和 latest reply，写新文件后 `ctx.switchSession`；16 MiB上限，未知格式拒绝。已创建未打开文件保留，刷新可发现，原页重试复用它，避免重复创建。
+- `p` 独立 Pinned 区跨 Project/Recent/Model/Status，搜索/项目过滤先应用，不在原组重复，按置顶时间倒序，每组默认5条。记录位于 `getAgentDir()/pi-session-viewer/pins`，以规范化路径和会话ID计算 sha256 独立文件，临时文件写入后原子 rename，不写源 JSONL。
+- `Delete` 只永久删除非当前单个会话；头部最多1 MiB，未知格式安全拒绝，复核身份和 revision。无跨进程锁，不能排除最后检查与删除间竞态；不停止其他进程、不级联 Fork、不删除项目。
+- 删除确认参照 `pics/删除对话.jpg`：居中深灰弹层、默认 Cancel 蓝条；数字仅选择，Enter确认。`a` 操作菜单，输入模式保留字母，兼容旧 `r` / `d`。
+- 未落盘当前行显示 Unsaved，不能删除当前会话、不能 pin / fork。自动标题加强 system prompt 与 `cleanModelTitle` 去前缀，不修改旧标题、不重新请求。
+- 工作树实现已通过类型检查、165项测试中的164项（另1项Windows符号链接权限跳过）、打包加载和独立审查修复复核；完整宿主切换与真实终端人工验收仍待完成。详见[管理实现边界与验收](../docs/management.md)。以上不覆盖 v1.0 已发布事实，包版本仍为1.0.0，不移动已发标签。
+
 ## 已找到的外部方案
 
 - `sidstack/pi-codex-agents`：MIT，核查版本 `1.2.0`，要求 Linux、Node `>=22.19.0`、Pi `>=1.3.0 <1.5.0`；明确支持空输入 `←` 与持久后台会话。

@@ -1,7 +1,9 @@
 import type { KeybindingsManager, SessionInfo, Theme } from "@earendil-works/pi-coding-agent";
 import { Input, matchesKey, parseColor, truncateToWidth, visibleWidth, type Component, type Focusable, type MarkdownTheme } from "@earendil-works/pi-tui";
-import { activityTime, filterSessions, GROUP_MODES, groupRows, pathKey, rowKey, safeText, sessionColor, sessionGroup, sessionTitle, type GroupingOptions, type GroupMode, type ListRow, type Preview, type Scope, type SessionModel } from "./model.ts";
+import { activityTime, filterSessions, GROUP_MODES, groupRows, pathKey, rowKey, safeText, sessionColor, sessionGroup, sessionTitle, sessionIdentity, isUnsaved, PINNED_GROUP, type GroupingOptions, type GroupMode, type ListRow, type Preview, type Scope, type SessionModel } from "./model.ts";
 import type { SessionRepository } from "./repository.ts";
+import type { PinStore } from "./pins.ts";
+export type BrowserAction = "new" | "fork" | "delete" | "menu";
 
 import { COLORS, detailLines, painter, type Ink } from "./details.ts";
 type StyledLine = { text: string; color?: Ink; bold?: boolean };
@@ -18,6 +20,8 @@ export interface BrowserOptions {
   requestRender(): void;
   height(): number;
   onSelect?(selection: SessionInfo): void;
+  onAction?(action: BrowserAction, session?: SessionInfo): void;
+  pins?: PinStore;
   done(selection: SessionInfo | undefined): void;
 }
 
@@ -27,6 +31,11 @@ export class SessionBrowser implements Component, Focusable {
   private renaming: SessionInfo | undefined;
   private renameBusy = false;
   private renamedTitles = new Map<string, string>();
+  private pinTimes = new Map<string, number>();
+  private pinOverrides = new Map<string, number | undefined>();
+  private pinBusy = false;
+  private removed = new Set<string>();
+  private added = new Map<string, SessionInfo>();
   private expanded = new Map<string, number>();
   private detailCache: { key: string; preview: Preview; lines: string[]; maxOffset: number } | undefined;
   private searchOpen = false;
@@ -77,7 +86,7 @@ export class SessionBrowser implements Component, Focusable {
   private grouping(): GroupingOptions {
     return { mode: this.groupMode, now: this.options.now?.() ?? Date.now(),
       modelFor: (session) => this.isCurrent(session) && this.options.currentModel ? this.options.currentModel() : this.modelNames.get(pathKey(session.path)),
-      statusFor: (session) => this.status(session) };
+      statusFor: (session) => this.status(session), pinnedAt: (session) => this.pinTimes.get(sessionIdentity(session)) };
   }
   private rows(): ListRow[] {
     const options = this.grouping();
@@ -125,6 +134,7 @@ export class SessionBrowser implements Component, Focusable {
       this.expanded.set(key, old + 5);
       const options = this.grouping();
       const members = this.visibleSessions().filter((s) => sessionGroup(s, options).key === key);
+      if (key === PINNED_GROUP) members.sort((a, b) => (options.pinnedAt?.(b) ?? 0) - (options.pinnedAt?.(a) ?? 0) || a.path.localeCompare(b.path));
       const next = members[old];
       this.selectedPath = next?.path;
       void this.loadPreview(next);
@@ -133,6 +143,65 @@ export class SessionBrowser implements Component, Focusable {
       if (this.options.onSelect) this.options.onSelect(this.selected);
       else this.finish(this.selected);
     }
+  }
+  startRename(session: SessionInfo): void {
+    if (this.closed || !this.options.repository.rename) return;
+    this.renaming = session;
+    this.renameInput.setValue(sessionTitle(session));
+    this.renameInput.handleInput("\x1b[F");
+    this.focused = this._focused; this.renderAgain();
+  }
+  async togglePin(session: SessionInfo): Promise<void> {
+    if (this.closed || this.loading || this.pinBusy || !this.options.pins) return;
+    if (isUnsaved(session)) { this.error = "This conversation is not saved yet; send a message before pinning."; this.renderAgain(); return; }
+    this.pinBusy = true;
+    const key = sessionIdentity(session);
+    const pinned = !this.pinTimes.has(key);
+    try {
+      await this.options.pins.write(session, pinned);
+      const time = pinned ? (await this.options.pins.read(session)) ?? Date.now() : undefined;
+      if (this.closed) return;
+      this.pinOverrides.set(key, time);
+      if (time === undefined) this.pinTimes.delete(key); else this.pinTimes.set(key, time);
+      this.error = "";
+      // Moving into a collapsed group must not hide the selected conversation.
+      if (this.selectedPath === session.path) {
+        const options = this.grouping();
+        const group = sessionGroup(session, options).key;
+        const members = this.visibleSessions().filter((s) => sessionGroup(s, options).key === group);
+        if (group === PINNED_GROUP) members.sort((a, b) => (options.pinnedAt?.(b) ?? 0) - (options.pinnedAt?.(a) ?? 0) || a.path.localeCompare(b.path));
+        const index = members.findIndex((s) => sessionIdentity(s) === key);
+        if (index >= 5) this.expanded.set(group, Math.ceil((index + 1) / 5) * 5);
+      }
+      this.chooseValidSelection();
+    } catch (error) { if (!this.closed) this.error = `Could not pin: ${safeText(String(error))}`; }
+    finally { this.pinBusy = false; this.renderAgain(); }
+  }
+  addSession(session: SessionInfo): void {
+    if (this.closed) return;
+    this.added.set(sessionIdentity(session), session);
+    this.sessions = [session, ...this.sessions.filter((item) => sessionIdentity(item) !== sessionIdentity(session))];
+    this.renderAgain();
+  }
+  removeSession(session: SessionInfo): void {
+    if (this.closed) return;
+    const choices = this.choices();
+    const index = choices.findIndex((row) => row.kind === "session" && sessionIdentity(row.session) === sessionIdentity(session));
+    this.removed.add(sessionIdentity(session));
+    this.added.delete(sessionIdentity(session));
+    this.sessions = this.sessions.filter((s) => sessionIdentity(s) !== sessionIdentity(session));
+    this.pinTimes.delete(sessionIdentity(session));
+    this.renamedTitles.delete(pathKey(session.path));
+    this.modelNames = new Map([...this.modelNames].filter(([key]) => key !== pathKey(session.path)));
+    this.options.repository.forget?.(session);
+    this.detailCache = undefined;
+    if (this.selectedPath === session.path) {
+      const next = this.choices();
+      const adjacent = next[Math.max(0, Math.min(index, next.length - 1))];
+      this.selectedPath = adjacent ? rowKey(adjacent) : undefined;
+      void this.loadPreview(adjacent?.kind === "session" ? adjacent.session : undefined);
+    }
+    this.chooseValidSelection(); this.renderAgain();
   }
   private async saveRename(): Promise<void> {
     const session = this.renaming;
@@ -153,7 +222,7 @@ export class SessionBrowser implements Component, Focusable {
   invalidate(): void { this.search.invalidate(); this.renameInput.invalidate(); this.detailCache = undefined; }
   private renderAgain(): void { if (!this.closed) this.options.requestRender(); }
   private isCurrent(session: SessionInfo): boolean { return pathKey(session.path) === pathKey(this.options.currentFile ?? ""); }
-  private status(session: SessionInfo): string { return this.isCurrent(session) ? (this.options.currentStatus?.() ?? "Ready") : "Saved"; }
+  private status(session: SessionInfo): string { return this.isCurrent(session) ? (isUnsaved(session) ? "Unsaved" : this.options.currentStatus?.() ?? "Ready") : "Saved"; }
   private setSearch(open: boolean): void {
     this.searchOpen = open;
     this.expanded.clear();
@@ -171,13 +240,29 @@ export class SessionBrowser implements Component, Focusable {
     this.listAbort = controller;
     // Only protect changes made DURING this scan; fresh reads are authoritative.
     this.renamedTitles.clear();
+    this.pinOverrides.clear();
     this.loading = true;
     this.error = "";
     this.renderAgain();
     try {
       const sessions = await this.options.repository.list(this.scope, controller.signal);
       if (controller.signal.aborted || this.closed) return;
-      this.sessions = sessions.map((session) => {
+      const pins = new Map<string, number>();
+      if (this.options.pins) for (let start = 0; start < sessions.length; start += 24) {
+        await Promise.all(sessions.slice(start, start + 24).map(async (session) => {
+          const time = await this.options.pins!.read(session);
+          if (time !== undefined) pins.set(sessionIdentity(session), time);
+        }));
+        if (controller.signal.aborted || this.closed) return;
+      }
+      for (const [key, time] of this.pinOverrides) { if (time === undefined) pins.delete(key); else pins.set(key, time); }
+      this.pinTimes = pins;
+      const discovered = sessions.filter((session) => !this.removed.has(sessionIdentity(session)));
+      for (const [key, session] of this.added) {
+        if (discovered.some((item) => sessionIdentity(item) === key)) this.added.delete(key);
+        else discovered.push(session);
+      }
+      this.sessions = discovered.map((session) => {
         const name = this.renamedTitles.get(pathKey(session.path));
         return name ? { ...session, name } : session;
       });
@@ -260,10 +345,7 @@ export class SessionBrowser implements Component, Focusable {
       this.renderAgain(); return;
     }
     if (!this.searchOpen && !this.helpOpen && matchesKey(data, "r") && this.selected && this.options.repository.rename) {
-      this.renaming = this.selected;
-      this.renameInput.setValue(sessionTitle(this.selected));
-      this.renameInput.handleInput("\x1b[F"); // Input.setValue preserves its old cursor; edit from the end.
-      this.focused = this._focused; this.renderAgain(); return;
+      this.startRename(this.selected); return;
     }
     if (matchesKey(data, "escape")) {
       if (this.helpOpen) { this.helpOpen = false; this.focused = this._focused; this.renderAgain(); }
@@ -286,6 +368,16 @@ export class SessionBrowser implements Component, Focusable {
     if (matchesKey(data, "enter") || (!this.searchOpen && matchesKey(data, "right"))) { this.activateSelection(); return; }
     if (matchesKey(data, "tab") || matchesKey(data, "shift+tab") || matchesKey(data, "ctrl+o")) { this.changeScope(); return; }
     if (matchesKey(data, "ctrl+r")) { void this.refresh(); return; }
+    if (!this.searchOpen && !this.loading) {
+      if (data === "p" && this.selected && this.options.pins) { void this.togglePin(this.selected); return; }
+      if (this.options.onAction) {
+        if (data === "n") { this.options.onAction("new"); return; }
+        if (data === "a") { this.options.onAction("menu", this.selected); return; }
+        if (this.selected && (data === "f" || matchesKey(data, "delete"))) {
+          this.options.onAction(data === "f" ? "fork" : "delete", this.selected); return;
+        }
+      }
+    }
     if (!this.searchOpen && data === "g") {
       this.groupMode = GROUP_MODES[(GROUP_MODES.indexOf(this.groupMode) + 1) % GROUP_MODES.length]!;
       this.expanded.clear(); this.chooseValidSelection();
@@ -333,7 +425,7 @@ export class SessionBrowser implements Component, Focusable {
   private helpLines(width: number): StyledLine[] {
     const groups = [
       ["Navigate", "↑ / ↓       Move", "Enter / →   Open", "PgUp/PgDn   Page", "Esc         Back", "Ctrl+C      Close"],
-      ["Tasks", "Enter / →   Resume / Show more", "Shift+↑/↓   Scroll last reply", "d / ←       Details / list (narrow)", ...(this.options.repository.rename ? ["r           Rename task"] : [])],
+      ["Tasks", "Enter / →   Resume / Show more", "Shift+↑/↓   Scroll last reply", "d / ←       Details / list (narrow)", ...(this.options.repository.rename ? ["r           Rename task"] : []), ...(this.options.onAction ? ["n           New conversation", "f           Fork conversation", "Delete      Delete conversation", "a           Actions"] : []), ...(this.options.pins ? ["p           Pin / unpin"] : [])],
       ["View", "Tab/S-Tab   Filter", "F3          Search", "g           Project/Recent/Model/Status", "Ctrl+R      Refresh", "?           Help"],
     ];
     const paint = painter(this.options.theme);
@@ -344,7 +436,7 @@ export class SessionBrowser implements Component, Focusable {
     };
     if (width >= 100) {
       const col = Math.floor(width / 3);
-      return Array.from({ length: 7 }, (_, i) => ({
+      return Array.from({ length: Math.max(...groups.map((group) => group.length)) }, (_, i) => ({
         text: groups.map((group) => {
           const text = truncateToWidth(action(group[i] ?? "", i), col, "");
           return text + " ".repeat(Math.max(0, col - visibleWidth(text)));
@@ -395,7 +487,7 @@ export class SessionBrowser implements Component, Focusable {
       if (row.kind === "more") return cell(`${selected ? "›" : " "}   Show more (${row.remaining} remaining)`, leftWidth, selected ? COLORS.ink : COLORS.dim, bg);
       const status = this.status(row.session);
       const circle = status === "Working" ? COLORS.blue : status === "Completed" ? COLORS.green : COLORS.dim;
-      const title = paint(selected ? "› " : "  ", selected ? COLORS.ink : COLORS.dim) + paint("○ ", circle) + paint(sessionTitle(row.session), selected ? COLORS.ink : sessionColor(row.session.id), selected);
+      const title = paint(selected ? "› " : "  ", selected ? COLORS.ink : COLORS.dim) + paint(this.pinTimes.has(sessionIdentity(row.session)) ? "★ " : "○ ", circle) + paint(sessionTitle(row.session), selected ? COLORS.ink : sessionColor(row.session.id), selected);
       const titleWidth = leftWidth < 42 ? leftWidth : leftWidth - 22;
       const titleCell = cell(title, titleWidth, COLORS.text, bg);
       return leftWidth < 42 ? titleCell : titleCell + cell(` ${fit(status, 9)} `, 11, COLORS.text, bg) + cell(fit(activityTime(row.session.modified), 11), 11, COLORS.dim, bg);
@@ -418,7 +510,7 @@ export class SessionBrowser implements Component, Focusable {
     }
     const status = this.error || (this.loading || this.modelsLoading ? paint(this.loading ? "Loading tasks... " : "Loading model groups... ", COLORS.dim) + paint("Esc", COLORS.white) + paint(" to cancel", COLORS.dim) : this.helpOpen ? "Only available actions are listed." : "Saved = history only; activity in other Pi processes is unknown.");
     lines.push(cell(status, width, this.error ? COLORS.error : COLORS.dim));
-    const hints = this.renaming ? [["Enter", "save"], ["Esc", "cancel"]] : this.helpOpen ? [["Esc", "back"], ["↑/↓", "scroll"]] : [["?", "help"], ["Esc", "back"], ["↑/↓", "move"], ["Enter/→", "open / more"], ["F3", "search"], ...(this.options.repository.rename ? [["r", "rename"]] : []), ["Shift+↑/↓", "reply"]];
+    const hints = this.renaming ? [["Enter", "save"], ["Esc", "cancel"]] : this.helpOpen ? [["Esc", "back"], ["↑/↓", "scroll"]] : [["?", "help"], ["Esc", "back"], ["↑/↓", "move"], ["Enter/→", "open / more"], ["F3", "search"], ...(this.options.onAction ? [["n", "new"], ["a", "actions"]] : []), ...(this.options.repository.rename ? [["r", "rename"]] : []), ["Shift+↑/↓", "reply"]];
     lines.push(cell(hints.map(([key, action]) => paint(key!, COLORS.white) + paint(` ${action}`, COLORS.dim)).join("   "), width, COLORS.dim));
     return lines.slice(0, height).map((line) => truncateToWidth(line, width, ""));
   }

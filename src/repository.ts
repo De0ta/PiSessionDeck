@@ -11,6 +11,7 @@ export interface SessionRepository {
   preview(session: SessionInfo, signal: AbortSignal): Promise<Preview>;
   models?(sessions: readonly SessionInfo[], signal: AbortSignal): Promise<ReadonlyMap<string, SessionModel>>;
   rename?(session: SessionInfo, title: string): Promise<void>;
+  forget?(session: SessionInfo): void;
 }
 export const MAX_PREVIEW_BYTES = 16 * 1024 * 1024;
 
@@ -168,6 +169,24 @@ export function createRepository(ctx: ExtensionContext, setCurrentName?: (name: 
         SessionManager.listAll(ctx.sessionManager.getSessionDir(), undefined, signal),
       ]);
       const sessions = mergeSessions(...groups);
+      const currentFile = ctx.sessionManager.getSessionFile();
+      if (currentFile && !sessions.some((session) => pathKey(session.path) === pathKey(currentFile))) {
+        const disk = await stat(currentFile).catch((error: NodeJS.ErrnoException) => { if (error.code === "ENOENT") return undefined; throw error; });
+        if (!disk) {
+          const header = ctx.sessionManager.getHeader();
+          const branch = ctx.sessionManager.getBranch();
+          const details = previewFromManager(ctx.sessionManager);
+          const created = new Date(header?.timestamp ?? Date.now());
+          const current: SessionInfo & { unsaved: true } = {
+            path: currentFile, id: ctx.sessionManager.getSessionId(), cwd: ctx.cwd,
+            name: ctx.sessionManager.getSessionName() ?? "New conversation (not saved)",
+            created, modified: new Date(branch.at(-1)?.timestamp ?? created),
+            messageCount: branch.filter((entry) => entry.type === "message").length,
+            firstMessage: details.details?.prompt ?? "", allMessagesText: details.messages.map((message) => message.text).join("\n"), unsaved: true,
+          };
+          sessions.push(current);
+        }
+      }
       // Bounded concurrency for large archives. Alias failures never hide history.
       for (let start = 0; start < sessions.length; start += 24) {
         signal.throwIfAborted();
@@ -179,6 +198,7 @@ export function createRepository(ctx: ExtensionContext, setCurrentName?: (name: 
       signal.throwIfAborted();
       return sessions;
     },
+    forget(session) { modelCache.delete(pathKey(session.path)); },
     async models(sessions, signal) {
       const result = new Map<string, SessionModel>();
       for (let start = 0; start < sessions.length; start += 4) {

@@ -11,7 +11,11 @@ export interface GroupingOptions {
   now?: number;
   modelFor?(session: SessionInfo): SessionModel | undefined;
   statusFor?(session: SessionInfo): string;
+  pinnedAt?(session: SessionInfo): number | undefined;
 }
+export const PINNED_GROUP = "pinned:";
+export function sessionIdentity(session: Pick<SessionInfo, "id" | "path">): string { return `${pathKey(session.path)}\0${session.id}`; }
+export function isUnsaved(session: SessionInfo): boolean { return "unsaved" in session && session.unsaved === true; }
 export interface PreviewMessage { role: "user" | "assistant"; text: string }
 export interface TaskDetails {
   model?: string;
@@ -68,6 +72,7 @@ const RECENT = [
   { end: 90 * 24 * HOUR, label: "1 month – 3 months" }, { end: Infinity, label: "Over 3 months" },
 ] as const;
 export function sessionGroup(session: SessionInfo, options: GroupingOptions = {}): { key: string; label: string; order: number } {
+  if (options.pinnedAt?.(session) !== undefined) return { key: PINNED_GROUP, label: "Pinned", order: -1 };
   switch (options.mode) {
     case "recent": {
       const age = Math.max(0, (options.now ?? Date.now()) - session.modified.getTime());
@@ -97,9 +102,10 @@ export function groupRows(sessions: readonly SessionInfo[], limits?: ReadonlyMap
   }
   return [...groups.values()].sort((a, b) => a.order - b.order).flatMap((group, index): ListRow[] => {
     const limit = limits ? (limits.get(group.key) ?? 5) : group.sessions.length;
+    if (group.key === PINNED_GROUP) group.sessions.sort((a, b) => (options.pinnedAt?.(b) ?? 0) - (options.pinnedAt?.(a) ?? 0) || a.path.localeCompare(b.path));
     return [
       ...(limits && index > 0 ? [{ kind: "spacer" } as const] : []),
-      options.mode && options.mode !== "project" ? { kind: "group", key: group.key, label: group.label, count: group.sessions.length }
+      group.key === PINNED_GROUP || (options.mode && options.mode !== "project") ? { kind: "group", key: group.key, label: group.label, count: group.sessions.length }
         : { kind: "project", cwd: group.label, count: group.sessions.length },
       ...group.sessions.slice(0, limit).map((session): ListRow => ({ kind: "session", session })),
       ...(group.sessions.length > limit ? [{ kind: "more", key: group.key, remaining: group.sessions.length - limit } as const] : []),

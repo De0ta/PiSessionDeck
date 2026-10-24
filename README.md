@@ -20,6 +20,17 @@ A lightweight terminal session browser for Pi 1.4.x. Browse, search, preview and
 - `?` 打开 Navigate / Tasks / View 帮助页；`F3` 显式开启搜索，搜索中输入快捷键字母不会触发动作。
 - 选择历史后进入独立转换页：同目录显示`Resume session`，跨目录显示`Working directory · resume`与Session/Current路径。仅顶部内容块深灰，下面保持终端底色且不露出聊天；Esc返回原列表，保留搜索/分组/展开/选中/详情滚动。确认后由Pi恢复；有任务、队列或草稿时拒绝切换，错误留在页内。
 
+## 会话管理增强（Unreleased）
+
+已实现并通过类型检查、165项自动化中的164项（Windows符号链接权限导致1项跳过）、工作树打包加载验证和独立审查修复复核；真实终端与完整宿主切换待人工验收。下列能力尚未发布，不属于已发布的 v1.0.0。详见[管理边界与隔离验收表](docs/management.md)。
+
+- `n`：在当前 cwd 新建会话，不自动发送 prompt；未落盘当前行显示 `Unsaved`，不能删除当前会话，也不能 pin / fork。
+- `f`：当前会话走原生 `ctx.fork(leaf, { position: 'at' })`；历史会话只读严格快照 v1/2/3，复制有效分支、引用闭包及 latest reply 到新文件，再切换，不先恢复源。新标题追加 ` · Fork`，不继承 pins；已创建但未打开的 Fork 保留，可刷新发现或重试打开，避免重复创建。
+- `p`：四种分组模式共用独立 `Pinned` 区；先应用搜索/项目过滤，再分组，不在普通组重复，按置顶时间倒序，每组默认5条。
+- `Delete`：仅永久删除非当前的单个会话文件。居中深灰确认层默认 `Cancel` 蓝条，数字仅选择，`Enter` 才确认；复核身份与 revision，无跨进程锁，不停止其他进程、不级联删除 Fork、不删除项目。
+- `a`：操作菜单；输入模式保留字母输入，保留 `r` 命名和 `d` 窄屏详情旧按键。
+- 自动标题加强 system prompt 并由 `cleanModelTitle` 清理“短会话标题-”“会话标题:”“Short session title”等前缀；不改旧标题、不重新请求模型。
+
 ## 安装 / Install
 
 要求 Node `>=22.19.0`、Git，以及`@earendil-works/pi-coding-agent`的Pi `>=1.4.0 <1.5.0`。不承诺旧版`@mariozechner/*`或其他Pi分支兼容。
@@ -35,6 +46,8 @@ pi install git:github.com/De0ta/PiSessionViewer@v1.0.0
 固定版本不会随`pi update --extensions`自动跳到下一个标签；升级时移除旧来源再安装新标签。安装、升级、卸载和源码试用见[安装指南](docs/install.md)。本项目未发布npm包，不要使用`npm install -g pi-session-viewer`。
 
 ### 平台与验证边界
+
+以下通过记录属于已发布 v1.0，不代表 Unreleased 管理增强已验证。
 
 | 环境 | 验证情况 |
 | --- | --- |
@@ -79,7 +92,7 @@ Linux按原生POSIX路径处理，无Windows专用运行依赖；请使用Linux�
 - Recent根据最后活动时间分为：小于5小时、5小时至1天、1天至7天、7天至30天、30天至90天、90天及以上；1个月按30天计。只显示非空组，不重叠计数。
 - 只有当前进程会话显示真实 `Ready` / `Working` / `Queued` 及本扩展观察到的 `Completed` / `Stopped` / `Error`；状态圈为默认灰、进行中蓝、已完成绿。其他历史统一标记 `Saved`，**不代表它已停止运行**。轻量版不能判断其他进程是否正在写同一会话，恢复前务必确认。
 - 恢复会替换当前会话与项目运行时。Pi可能迁移编辑器文字，因此有任何草稿（含空格/换行）时阻止恢复，需先返回聊天保存或清空；退出而不恢复则保留原编辑器。异步预检前后都检查任务、队列和草稿。
-- 没有后台驻留、远程连接、实时多会话状态、跨进程停止、置顶/归档/删除、worktree。模型标题仅用于命名，不承担任务执行。不替代 Pi 原生 `/resume` 的全部管理功能。
+- v1.0 没有置顶/删除；Unreleased 管理增强边界见上文。仍不提供后台驻留、远程连接、实时多会话状态、跨进程停止、归档/回收站或 worktree。模型标题仅用于命名，不承担任务执行。不替代 Pi 原生 `/resume` 的全部管理功能。
 - 提交前只读核查文件存在/非空、64 KiB内的会话头、ID/目录/版本与文件修订、目标目录存在且可访问；缺失或异常留在转换页，不创建文件，也不通过`process.chdir()`或原地迁移修复。预检不完整解析全文件、不能杜绝随后发生的文件系统竞态或宿主内部错误；Pi原生恢复可能迁移旧格式，这是实际恢复而非浏览/预检的行为。
 
 ## 发布验证
@@ -105,6 +118,7 @@ pi -e .
 
 - [安装、更新与卸载](docs/install.md)
 - [版本记录](CHANGELOG.md)
+- [会话管理增强：实现边界与隔离人工验收](docs/management.md)
 - [工作流与当前进度](https://github.com/De0ta/PiSessionViewer/blob/main/workflow/README.md)
 - [v0.6 独立恢复转换页](docs/resume-v0.6.md)
 - [v0.5 四种会话分组](docs/groups-v0.5.md)
