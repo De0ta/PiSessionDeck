@@ -16,7 +16,9 @@ function run(command, args, cwd) {
   return result.stdout;
 }
 try {
-  const [pack] = JSON.parse(run(process.execPath, [process.env.npm_execpath, "pack", "--ignore-scripts", "--json", "--pack-destination", root], project));
+  // npm publish --dry-run propagates to lifecycle children; this check needs
+  // a real archive inside its temporary directory, even during a publish preview.
+  const [pack] = JSON.parse(run(process.execPath, [process.env.npm_execpath, "pack", "--dry-run=false", "--ignore-scripts", "--json", "--pack-destination", root], project));
   assert.ok(pack.files.length > 0);
   for (const { path } of pack.files) {
     assert.ok(/^(?:src\/[^/]+\.ts|README(?:\.zh-CN)?\.md|LICENSE|CHANGELOG\.md|package\.json|docs\/install\.md)$/.test(path), `Unexpected packed file: ${path}`);
@@ -33,6 +35,9 @@ try {
   const manifest = JSON.parse(await readFile(join(pkg, "package.json"), "utf8"));
   assert.equal(manifest.license, "MIT");
   assert.equal(manifest.version, pack.version);
+  assert.notEqual(manifest.private, true);
+  assert.equal(manifest.publishConfig?.access, "public");
+  assert.equal(manifest.publishConfig?.registry, "https://registry.npmjs.org/");
   assert.ok(manifest.pi.extensions.length > 0);
   const cwd = join(root, "project");
   const agent = join(root, "agent");

@@ -1,7 +1,6 @@
 {
   "name": "pi-session-deck-17528",
   "version": "1.0.1",
-  "private": true,
   "type": "module",
   "description": "Keyboard-first session browsing and management for Pi",
   "license": "MIT",
@@ -11,7 +10,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/De0ta/PiSessionDeck.git"
+    "url": "git+https://github.com/De0ta/PiSessionDeck.git"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   },
   "keywords": [
     "pi-package"
@@ -24,6 +27,7 @@
   "files": [
     "src",
     "README.md",
+    "README.zh-CN.md",
     "LICENSE",
     "CHANGELOG.md",
     "docs/install.md"
@@ -35,7 +39,8 @@
     "check": "tsc --noEmit",
     "test": "tsx --test test/*.test.ts",
     "smoke:package": "node scripts/smoke-package.mjs",
-    "smoke:install": "node scripts/smoke-install.mjs"
+    "smoke:install": "node scripts/smoke-install.mjs",
+    "prepublishOnly": "npm run check && npm test && npm run smoke:package"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": ">=1.4.0 <1.5.0",
