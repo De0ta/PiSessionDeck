@@ -1,6 +1,6 @@
 {
   "name": "@link17528/pi-session-deck",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "type": "module",
   "description": "Keyboard-first session browsing and management for Pi",
   "license": "MIT",

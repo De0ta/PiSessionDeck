@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.0.3 — 2026-10-28
+
+### Changed
+
+- Follow Pi's active theme for text, selection, search, confirmation panels, reasoning levels, and stable session identity colors instead of using fixed RGB colors. Keep the terminal's default background for the main canvas.
+- Document terminal-matched colors through Pi's system theme. Thanks to @yceachan for [PR #1](https://github.com/De0ta/PiSessionDeck/pull/1).
+
+### Validation
+
+- Type checks passed; 188 tests, 187 passed and 1 skipped because the Windows account lacked symlink permissions.
+- Package smoke passed with 21 packed files and isolated Pi extension loading.
+
+### Known limitation
+
+- Confirmation panels use the theme's general text roles on `customMessageBg`. Custom themes with contrasting panel-specific text colors can have poor contrast.
+
 ## 1.0.2 — 2026-10-24
 
 ### Fixed

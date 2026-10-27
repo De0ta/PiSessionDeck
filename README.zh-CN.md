@@ -35,10 +35,10 @@ PiSessionDeck 在 Pi 内提供全屏、面向项目的本地会话视图。无�
 pi install npm:@link17528/pi-session-deck
 ```
 
-需要固定版本时使用 `npm:@link17528/pi-session-deck@1.0.2`。也可通过 Git 安装，此方式还需 **Git**：
+需要固定版本时使用 `npm:@link17528/pi-session-deck@1.0.3`。也可通过 Git 安装，此方式还需 **Git**：
 
 ```sh
-pi install git:github.com/De0ta/PiSessionDeck@v1.0.2
+pi install git:github.com/De0ta/PiSessionDeck@v1.0.3
 ```
 
 重启 Pi，然后输入：
@@ -178,7 +178,7 @@ Pi 直接加载 TypeScript 扩展，无需编译、手动复制文件或单独�
 | 检查项目 | 覆盖范围 |
 | --- | --- |
 | CI 矩阵 | Windows、Ubuntu × Node 22.19、24。 |
-| 本地回归测试 | Windows / Node 24：183 项测试，182 项通过，1 项符号链接测试因账号权限跳过。 |
+| 本地回归测试 | Windows / Node 24：188 项测试，187 项通过，1 项符号链接测试因账号权限跳过。 |
 | 本地打包检查 | 类型检查通过；21 文件包通过隔离 Pi 扩展加载检查。 |
 
 Linux 使用原生 POSIX 路径。请使用运行 Pi 的环境所对应的项目路径；Windows 路径不会自动转换为 Linux 或 WSL 路径。各版本执行结果见 [GitHub Releases](https://github.com/De0ta/PiSessionDeck/releases)。
@@ -200,7 +200,7 @@ npm run smoke:install
 测试使用临时会话数据。`smoke:package` 通过 Pi 扩展加载器检查当前工作树；`smoke:install` 检查已提交 `HEAD` 的 Git 安装。检查公开版本的匿名安装可使用：
 
 ```sh
-npm run smoke:install -- --public --ref v1.0.2
+npm run smoke:install -- --public --ref v1.0.3
 ```
 
 ## 文档与支持

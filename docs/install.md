@@ -17,10 +17,10 @@ PiSessionDeck 是 Pi 扩展，可通过 npm 或 GitHub 安装，无需构建或�
 pi install npm:@link17528/pi-session-deck
 ```
 
-固定 npm 版本使用 `pi install npm:@link17528/pi-session-deck@1.0.2`。也可安装 GitHub 标签：
+固定 npm 版本使用 `pi install npm:@link17528/pi-session-deck@1.0.3`。也可安装 GitHub 标签：
 
 ```sh
-pi install git:github.com/De0ta/PiSessionDeck@v1.0.2
+pi install git:github.com/De0ta/PiSessionDeck@v1.0.3
 ```
 
 默认安装到个人代理配置，跨项目可用；仅需当前项目使用时可加 `--local`。重启 Pi 后输入 `/session-browser`，或在完全空白的输入框按 `←`。
@@ -65,11 +65,11 @@ pi remove git:github.com/De0ta/PiSessionDeck@v1.0.1
 pi install npm:@link17528/pi-session-deck
 ```
 
-Git 来源从 v1.0.1 升级到 v1.0.2：
+Git 来源从 v1.0.2 升级到 v1.0.3：
 
 ```sh
-pi remove git:github.com/De0ta/PiSessionDeck@v1.0.1
-pi install git:github.com/De0ta/PiSessionDeck@v1.0.2
+pi remove git:github.com/De0ta/PiSessionDeck@v1.0.2
+pi install git:github.com/De0ta/PiSessionDeck@v1.0.3
 ```
 
 移除命令应使用 `pi list` 中记录的实际来源，包括提交版本和使用旧仓库名 PiSessionViewer 的安装；GitHub 的地址重定向不会自动修改本地来源声明。保持单一安装来源，避免同时加载安装版和 `pi -e .`。无标签的 `main` 来源会跟随开发分支。
@@ -82,7 +82,7 @@ pi install git:github.com/De0ta/PiSessionDeck@v1.0.2
 pi remove npm:@link17528/pi-session-deck
 ```
 
-固定 npm 版本或 Git 来源应使用对应的完整声明，例如 `npm:@link17528/pi-session-deck@1.0.2` 或 `git:github.com/De0ta/PiSessionDeck@v1.0.2`。
+固定 npm 版本或 Git 来源应使用对应的完整声明，例如 `npm:@link17528/pi-session-deck@1.0.3` 或 `git:github.com/De0ta/PiSessionDeck@v1.0.3`。
 
 重启 Pi。会话历史保留；手动标题缓存和置顶元数据位于代理配置下的 `pi-session-viewer` 目录，不再需要时可单独清理。
 
@@ -96,7 +96,7 @@ pi remove npm:@link17528/pi-session-deck
 
 ## 本地检查结果
 
-- Windows / Node 24：`npm run check` 通过；183 项测试，182 通过，1 项因符号链接权限跳过。
+- Windows / Node 24：`npm run check` 通过；188 项测试，187 通过，1 项因符号链接权限跳过。
 - 工作树打包检查通过，共 21 个文件；隔离 Pi 扩展加载检查通过。
 
 ### v1.0.1 发布检查记录

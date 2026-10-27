@@ -35,10 +35,10 @@ Requires **Node.js 22.19.0+** and **Pi 1.4.x** from `@earendil-works/pi-coding-a
 pi install npm:@link17528/pi-session-deck
 ```
 
-For a pinned version, use `npm:@link17528/pi-session-deck@1.0.2`. Git installation is also available and requires **Git**:
+For a pinned version, use `npm:@link17528/pi-session-deck@1.0.3`. Git installation is also available and requires **Git**:
 
 ```sh
-pi install git:github.com/De0ta/PiSessionDeck@v1.0.2
+pi install git:github.com/De0ta/PiSessionDeck@v1.0.3
 ```
 
 Restart Pi, then run:
@@ -178,7 +178,7 @@ PiSessionDeck targets **Pi 1.4.x** and **Node.js 22.19.0+**.
 | Check | Coverage |
 | --- | --- |
 | CI matrix | Windows and Ubuntu × Node 22.19 and 24. |
-| Local regression suite | Windows / Node 24: 183 tests, 182 passed; one symlink test skipped because of account permissions. |
+| Local regression suite | Windows / Node 24: 188 tests, 187 passed; one symlink test skipped because of account permissions. |
 | Local package checks | Type checking passed; the 21-file package passed isolated Pi extension loading. |
 
 Linux uses native POSIX paths. Use the project path for the environment running Pi; Windows paths are not automatically translated to Linux or WSL paths. Release-specific results are linked from the [GitHub releases](https://github.com/De0ta/PiSessionDeck/releases).
@@ -200,7 +200,7 @@ To run the source directly, use `pi -e /absolute/path/to/PiSessionDeck` with the
 Tests use temporary session fixtures. `smoke:package` checks the working tree with Pi's extension loader; `smoke:install` verifies installation from committed `HEAD`. To check a public release anonymously:
 
 ```sh
-npm run smoke:install -- --public --ref v1.0.2
+npm run smoke:install -- --public --ref v1.0.3
 ```
 
 ## Documentation and support
