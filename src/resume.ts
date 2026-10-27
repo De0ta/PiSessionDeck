@@ -1,12 +1,11 @@
 import type { SessionInfo } from "@earendil-works/pi-coding-agent";
-import { matchesKey, parseColor, truncateToWidth, visibleWidth, wrapTextWithAnsi, type Component, type Focusable } from "@earendil-works/pi-tui";
+import { matchesKey, truncateToWidth, visibleWidth, wrapTextWithAnsi, type Component, type Focusable } from "@earendil-works/pi-tui";
 import { SessionBrowser, type BrowserOptions } from "./browser.ts";
 import { COLORS, painter, type Ink } from "./details.ts";
 import { pathKey, safeText, sessionTitle } from "./model.ts";
 import { ActionDialog } from "./action-dialog.ts";
 import type { SessionRevision } from "./management.ts";
 
-const PANEL = "#262626";
 type PageOptions = Pick<BrowserOptions, "cwd" | "theme" | "height" | "keybindings" | "requestRender"> & {
   session: SessionInfo;
   mode?: "fork";
@@ -14,7 +13,7 @@ type PageOptions = Pick<BrowserOptions, "cwd" | "theme" | "height" | "keybinding
   back(): void;
 };
 
-/** A complete page, not a dialog: only its content block has a gray background. */
+/** A complete page: themed content panel surrounded by the terminal's default background. */
 export class ResumePage implements Component {
   private selected = 0;
   private offset = 0;
@@ -102,7 +101,7 @@ export class ResumePage implements Component {
       const clipped = truncateToWidth(row.text, columns, "");
       const text = clipped + " ".repeat(Math.max(0, columns - visibleWidth(clipped)));
       return "\x1b[0m" + " ".repeat(margin) + this.options.theme.style(text, {
-        fg: parseColor(row.color ?? COLORS.text), bg: parseColor(row.selected ? COLORS.selected : PANEL), bold: row.bold,
+        fg: row.color ?? COLORS.text, bg: row.selected ? COLORS.selected : COLORS.panel, bold: row.bold,
       }) + "\x1b[0m" + " ".repeat(margin);
     });
   }

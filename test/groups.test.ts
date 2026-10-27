@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
+import { theme } from "./theme-fixture.ts";
 import test from "node:test";
 import { mkdtemp, open, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { stripVTControlCharacters } from "node:util";
 import { parseSessionEntries, SessionManager, type ExtensionContext, type SessionInfo } from "@earendil-works/pi-coding-agent";
-import { matchesKey, styleText } from "@earendil-works/pi-tui";
+import { matchesKey } from "@earendil-works/pi-tui";
 import { SessionBrowser } from "../src/browser.ts";
 import { groupRows, pathKey, rowKey, sessionGroup, type SessionModel } from "../src/model.ts";
 import { createRepository, MAX_PREVIEW_BYTES, modelFromText } from "../src/repository.ts";
@@ -83,7 +84,7 @@ function browserFixture(sessions: SessionInfo[], options: { now?: () => number; 
       modelReads++;
       return options.models ? options.models(signal) : new Map(sessions.map((s, i) => [pathKey(s.path), { provider: "provider", modelId: i < 7 ? "model-A" : "model-B" }]));
     } },
-    theme: { style: (text, style) => styleText(text, { fg: typeof style.fg === "object" ? style.fg : undefined, bg: typeof style.bg === "object" ? style.bg : undefined, bold: style.bold }, "truecolor") },
+    theme,
     keybindings: { matches: (data, action) => matchesKey(data, action === "tui.select.up" ? "up" : "down") },
     requestRender() {}, height: () => 50, done: (value) => done.push(value),
   });

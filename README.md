@@ -76,6 +76,12 @@ Press `Esc` to return without resuming. Returning from the confirmation page pre
 
 Wide terminals show the list and details side by side. On narrow terminals, select a session and press `d` to open its details, then `←` to return. Use `Shift+↑` / `Shift+↓` to scroll a long reply.
 
+### Theme and terminal colors
+
+The canvas keeps the terminal's default background. Text, selection, search, confirmation panels, and session identity colors use Pi's active theme, including live theme changes. There is no fixed black background or terminal-specific configuration reader.
+
+For terminal-matched colors (such as Catppuccin Mocha in Ghostty or Windows Terminal), select **system** under `/settings` → **Theme**. Pi queries the terminal's foreground, background, and ANSI palette; if a terminal does not report colors, Pi falls back to ANSI/default colors. Custom Pi themes are respected too.
+
 ### Grouping and previews
 
 Press `g` to cycle through four views:

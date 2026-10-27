@@ -1,6 +1,6 @@
 import { posix, win32 } from "node:path";
 import { stripVTControlCharacters } from "node:util";
-import type { SessionInfo } from "@earendil-works/pi-coding-agent";
+import type { SessionInfo, ThemeColor } from "@earendil-works/pi-coding-agent";
 
 export type Scope = "project" | "all";
 export const GROUP_MODES = ["project", "recent", "model", "status"] as const;
@@ -128,8 +128,8 @@ export function activityTime(date: Date, now = Date.now()): string {
   return `${Math.floor(minutes / 1440)}d ago`;
 }
 
-export const SESSION_COLORS = ["#79c9da", "#d8a0b5", "#a7d58e", "#acb9ec", "#dbbd82", "#c3a2df", "#8dcbb7", "#e49e94"] as const;
-/** Identity colors must not change with selection, sort order, or refresh. */
+export const SESSION_COLORS = ["accent", "success", "warning", "mdCode", "syntaxKeyword", "syntaxType", "syntaxString", "mdHeading"] as const satisfies readonly ThemeColor[];
+/** Stable identity roles; their actual colors follow the active Pi theme. */
 export function sessionColor(id: string): (typeof SESSION_COLORS)[number] {
   let hash = 2166136261;
   for (const char of id) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);

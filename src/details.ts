@@ -1,20 +1,21 @@
-import type { Theme } from "@earendil-works/pi-coding-agent";
-import { Markdown, parseColor, truncateToWidth, visibleWidth, wrapTextWithAnsi, type MarkdownTheme } from "@earendil-works/pi-tui";
+import type { Theme, ThemeColor } from "@earendil-works/pi-coding-agent";
+import { Markdown, truncateToWidth, visibleWidth, wrapTextWithAnsi, type MarkdownTheme } from "@earendil-works/pi-tui";
 import { safeText, sessionColor, sessionTitle, type Preview } from "./model.ts";
 import type { SessionInfo } from "@earendil-works/pi-coding-agent";
 
-export const COLORS = { bg: "#0c0c0c", text: "#dadada", white: "#ffffff", dim: "#929292", border: "#555555", selected: "#659ee8", ink: "#101820", error: "#ee9696", search: "#444444", blue: "#75b5ff", provider: "#8dcbb7", green: "#a7d58e" } as const;
-export type Ink = `#${string}`;
+/** Semantic roles stay live across Pi theme changes; the canvas uses SGR 49, not an RGB guess. */
+export const COLORS = { bg: undefined, text: "text", white: "text", dim: "muted", border: "borderMuted", selected: "selectedBg", ink: "text", error: "error", search: "userMessageBg", panel: "customMessageBg", blue: "accent", provider: "mdCode", green: "success" } as const;
+export type Ink = ThemeColor;
 export type Paint = (text: string, color?: Ink, bold?: boolean) => string;
 export function painter(theme: Pick<Theme, "style">): Paint {
-  return (text, color = COLORS.text, bold = false) => theme.style(text, { fg: parseColor(color), bold });
+  return (text, color = COLORS.text, bold = false) => theme.style(text, { fg: color, bold });
 }
 export function reasoningColor(level: string): Ink {
-  return ({ off: COLORS.dim, minimal: "#8dcbb7", low: "#a7d58e", medium: "#dbbd82", high: "#d8a0b5", xhigh: "#c3a2df", max: "#ee9696" } as Record<string, Ink>)[level] ?? COLORS.dim;
+  return ({ off: "thinkingOff", minimal: "thinkingMinimal", low: "thinkingLow", medium: "thinkingMedium", high: "thinkingHigh", xhigh: "thinkingXhigh", max: "thinkingMax" } as Record<string, Ink>)[level] ?? COLORS.dim;
 }
 function fallbackMarkdown(paint: Paint): MarkdownTheme {
   const dim = (text: string) => paint(text, COLORS.dim);
-  return { heading: (text) => paint(text, "#dbbd82", true), link: (text) => paint(text, COLORS.blue), linkUrl: dim,
+  return { heading: (text) => paint(text, "mdHeading", true), link: (text) => paint(text, COLORS.blue), linkUrl: dim,
     code: (text) => paint(text, COLORS.provider), codeBlock: (text) => paint(text, COLORS.provider), codeBlockBorder: dim,
     quote: dim, quoteBorder: dim, hr: dim, listBullet: dim, bold: (text) => paint(text, COLORS.white, true),
     italic: (text) => text, strikethrough: (text) => text, underline: (text) => text };
