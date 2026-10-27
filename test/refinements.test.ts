@@ -4,7 +4,7 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { stripVTControlCharacters } from "node:util";
-import { matchesKey, styleText, visibleWidth } from "@earendil-works/pi-tui";
+import { matchesKey, visibleWidth } from "@earendil-works/pi-tui";
 import { SessionManager, type ExtensionContext, type SessionInfo } from "@earendil-works/pi-coding-agent";
 import { SessionBrowser } from "../src/browser.ts";
 import { COLORS, detailLines, painter } from "../src/details.ts";
@@ -13,7 +13,7 @@ import { createRepository } from "../src/repository.ts";
 import { createTitleStore } from "../src/titles.ts";
 import { cwd, deferred, header, jsonl, session, tick, user } from "./fixtures.ts";
 
-const theme = { style: (text: string, options: Parameters<typeof styleText>[1]) => styleText(text, options, "truecolor") };
+import { theme } from "./theme-fixture.ts";
 const paint = painter(theme);
 function fixture(sessions: SessionInfo[], rename?: (session: SessionInfo, title: string) => Promise<void>, list = async () => sessions) {
   const done: unknown[] = [];
@@ -139,7 +139,7 @@ test("详情Markdown、固定Prompt、三行彩色标题、灰色省略与元数
   assert.ok(promptIndex >= 0 && promptIndex + 2 < plain.length, "two prompt rows are reserved");
   assert.ok(result.lines.some((s) => s.includes(paint("provider", COLORS.provider))));
   assert.ok(result.lines.some((s) => s.includes(paint("model", COLORS.blue))));
-  assert.ok(result.lines.some((s) => s.includes(paint("high", "#d8a0b5"))));
+  assert.ok(result.lines.some((s) => s.includes(paint("high", "thinkingHigh"))));
   assert.ok(!plain.join("\n").includes("**"));
   assert.ok(result.maxOffset > 0);
   const scrolled = detailLines({ session: s, preview, status: "Saved", current: false, width: 36, height: 24, offset: 30, paint });

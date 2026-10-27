@@ -3,14 +3,14 @@ import test from "node:test";
 import { access, mkdir, mkdtemp, readFile, rm, stat, truncate, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { compositeTuiLine, matchesKey, styleText, visibleWidth } from "@earendil-works/pi-tui";
+import { compositeTuiLine, matchesKey, visibleWidth } from "@earendil-works/pi-tui";
 import type { SessionInfo } from "@earendil-works/pi-coding-agent";
 import { ResumeFlow, ResumePage } from "../src/resume.ts";
 import { validateResumeTarget } from "../src/resume-target.ts";
 import { cwd, deferred, header, jsonl, session, tick } from "./fixtures.ts";
 
 const plain = (text: string) => text.replace(/\x1b\[[0-9;]*m/g, "");
-const theme = { style: (text: string, o: Parameters<typeof styleText>[1]) => styleText(text, o, "truecolor") };
+import { theme } from "./theme-fixture.ts";
 const keybindings = { matches: (data: string, action: string) => matchesKey(data, action === "tui.select.up" ? "up" : "down") };
 function fixture(sessions = [session("a")]) {
   let rows = 30;

@@ -1,5 +1,5 @@
-import type { KeybindingsManager, SessionInfo, Theme } from "@earendil-works/pi-coding-agent";
-import { Input, matchesKey, parseColor, truncateToWidth, visibleWidth, type Component, type Focusable, type MarkdownTheme } from "@earendil-works/pi-tui";
+import type { KeybindingsManager, SessionInfo, Theme, ThemeBg } from "@earendil-works/pi-coding-agent";
+import { Input, matchesKey, truncateToWidth, visibleWidth, type Component, type Focusable, type MarkdownTheme } from "@earendil-works/pi-tui";
 import { activityTime, filterSessions, GROUP_MODES, groupRows, pathKey, rowKey, safeText, sessionColor, sessionGroup, sessionTitle, sessionIdentity, isUnsaved, PINNED_GROUP, type GroupingOptions, type GroupMode, type ListRow, type Preview, type Scope, type SessionModel } from "./model.ts";
 import type { SessionRepository } from "./repository.ts";
 import type { PinStore } from "./pins.ts";
@@ -453,8 +453,8 @@ export class SessionBrowser implements Component, Focusable {
       const clipped = truncateToWidth(text, Math.max(0, columns), "");
       return clipped + " ".repeat(Math.max(0, columns - visibleWidth(clipped)));
     };
-    const cell = (text: string, columns: number, color: Ink = COLORS.text, bg: Ink = COLORS.bg, bold = false) =>
-      this.options.theme.style(fit(text, columns), { fg: parseColor(color), bg: parseColor(bg), bold });
+    const cell = (text: string, columns: number, color: Ink = COLORS.text, bg: ThemeBg | undefined = COLORS.bg, bold = false) =>
+      "\x1b[49m" + this.options.theme.style(fit(text, columns), { fg: color, bg, bold });
     const paint = painter(this.options.theme);
     const wide = width >= 100;
     const rightWidth = wide ? Math.max(34, Math.min(58, Math.floor(width * 0.3))) : width;

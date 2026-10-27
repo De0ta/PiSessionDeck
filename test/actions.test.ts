@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { matchesKey, parseColor, styleText, visibleWidth } from "@earendil-works/pi-tui";
+import { matchesKey, parseColor, visibleWidth } from "@earendil-works/pi-tui";
 import type { SessionInfo } from "@earendil-works/pi-coding-agent";
 import { ActionDialog } from "../src/action-dialog.ts";
 import { ResumeFlow, type ResumeFlowOptions } from "../src/resume.ts";
 import { cwd, deferred, session, tick } from "./fixtures.ts";
 
 const plain = (value: string) => value.replace(/\x1b\[[0-9;]*m/g, "");
-const theme = { style: (text: string, options: Parameters<typeof styleText>[1]) => styleText(text, options, "truecolor") };
+import { theme } from "./theme-fixture.ts";
 const keybindings = { matches: (data: string, action: string) => matchesKey(data, action === "tui.select.up" ? "up" : "down") };
 const revision = {} as Awaited<ReturnType<NonNullable<ResumeFlowOptions["actions"]>["captureDelete"]>>;
 function fixture(target = session("a")) {

@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { compositeTuiLine, matchesKey, styleText, visibleWidth } from "@earendil-works/pi-tui";
+import { compositeTuiLine, matchesKey, visibleWidth } from "@earendil-works/pi-tui";
 import type { SessionInfo } from "@earendil-works/pi-coding-agent";
 import { SessionBrowser } from "../src/browser.ts";
 import { activityTime, sessionColor } from "../src/model.ts";
 import { cwd, session, tick } from "./fixtures.ts";
+import { theme } from "./theme-fixture.ts";
 
 function fixture(sessions: SessionInfo[] = [session("a", { name: "Alpha" }), session("b", { name: "Beta" })], promptText?: string) {
   let rows = 24;
@@ -18,7 +19,7 @@ function fixture(sessions: SessionInfo[] = [session("a", { name: "Alpha" }), ses
       list: async (scope) => { scopes.push(scope); return sessions; },
       preview: async (s) => { previews++; return { messages: [], details: { model: "openai/gpt-test", reasoning: "high", prompt: promptText ?? `Prompt ${s.id}`, lastMessage: `Reply ${s.id}` } }; },
     },
-    theme: { style: (text, options) => styleText(text, { fg: typeof options.fg === "object" ? options.fg : undefined, bg: typeof options.bg === "object" ? options.bg : undefined, bold: options.bold }, "truecolor") },
+    theme,
     keybindings: { matches: (data, action) => matchesKey(data, action === "tui.select.up" ? "up" : "down") },
     requestRender() {}, height: () => rows, done: (value) => done.push(value),
   });

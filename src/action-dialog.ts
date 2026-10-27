@@ -1,4 +1,4 @@
-import { compositeTuiLine, matchesKey, parseColor, truncateToWidth, visibleWidth, wrapTextWithAnsi, type Component } from "@earendil-works/pi-tui";
+import { compositeTuiLine, matchesKey, truncateToWidth, visibleWidth, wrapTextWithAnsi, type Component } from "@earendil-works/pi-tui";
 import type { BrowserOptions } from "./browser.ts";
 import { COLORS } from "./details.ts";
 import { safeText } from "./model.ts";
@@ -72,7 +72,7 @@ export class ActionDialog implements Component {
     return rows.slice(this.offset, this.offset + available).map((row) => {
       const clipped = truncateToWidth(row.text, inner, "");
       const text = " ".repeat(inset) + clipped + " ".repeat(Math.max(0, width - inset - visibleWidth(clipped)));
-      return "\x1b[0m" + this.options.theme.style(text, { fg: parseColor(row.selected ? COLORS.ink : row.error ? COLORS.error : COLORS.text), bg: parseColor(row.selected ? COLORS.selected : "#262626"), bold: row.selected }) + "\x1b[0m";
+      return "\x1b[0m" + this.options.theme.style(text, { fg: row.selected ? COLORS.ink : row.error ? COLORS.error : COLORS.text, bg: row.selected ? COLORS.selected : COLORS.panel, bold: row.selected }) + "\x1b[0m";
     });
   }
   renderOver(base: string[], width: number): string[] {

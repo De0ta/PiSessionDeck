@@ -2,13 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { stripVTControlCharacters } from "node:util";
 import { parseSessionEntries, SessionManager, type SessionInfo } from "@earendil-works/pi-coding-agent";
-import { matchesKey, parseColor, styleText, visibleWidth, type MarkdownTheme } from "@earendil-works/pi-tui";
+import { matchesKey, visibleWidth, type MarkdownTheme } from "@earendil-works/pi-tui";
 import { SessionBrowser } from "../src/browser.ts";
 import { colorPromptAddresses, COLORS, detailLines, painter } from "../src/details.ts";
 import { firstExchangeFromManager, previewFromManager } from "../src/repository.ts";
 import { cwd, header, jsonl, session, tick, user } from "./fixtures.ts";
 
-const theme = { style: (text: string, options: Parameters<typeof styleText>[1]) => styleText(text, options, "truecolor") };
+import { theme } from "./theme-fixture.ts";
+import { colorToHex } from "@earendil-works/pi-tui";
 const paint = painter(theme);
 function fixture(sessions = [session("a")]) {
   const done: (SessionInfo | undefined)[] = [];
@@ -79,7 +80,7 @@ test("搜索栏默认不占行、只在搜索/重命名时出现，r在搜索中
 test("Status列标题为灰色，每行状态为灰白色，Updated仍为灰色", async () => {
   const f = fixture(); await tick(); const lines = f.browser.render(160);
   const selected = lines.find((s) => stripVTControlCharacters(s).includes("Saved"))!;
-  const whiteStatus = theme.style(" Saved     ", { fg: parseColor(COLORS.text), bg: parseColor(COLORS.selected), bold: false });
+  const whiteStatus = theme.style(" Saved     ", { fg: COLORS.text, bg: COLORS.selected, bold: false });
   assert.ok(selected.includes(whiteStatus));
   const heading = lines.find((s) => stripVTControlCharacters(s).includes("Status"))!;
   assert.ok(heading.includes("38;2;146;146;146"));
@@ -128,6 +129,7 @@ function styledText(text: string) {
 function assertColor(line: string, value: string, color: string) {
   const styled = styledText(line);
   const index = styled.plain.indexOf(value);
+  if (!color.startsWith("#")) color = colorToHex(theme.colors[color as keyof typeof theme.colors]);
   assert.ok(index >= 0, `missing ${value}`);
   assert.ok(styled.chars.slice(index, index + value.length).every((c) => c.foreground === color), `${value} must be ${color}`);
 }
@@ -163,7 +165,7 @@ test("窄屏软换行后标题、引用和代码块地址的所有续行仍蓝�
     const address = lines.filter((s) => !stripVTControlCharacters(s).trim().startsWith("```"));
     const characters = address.flatMap((s) => styledText(s).chars).filter((c) => !/[│\s]/.test(c.value));
     assert.equal(characters.map((c) => c.value).join(""), path, prompt);
-    assert.ok(characters.every((c) => c.foreground === COLORS.blue), prompt);
+    assert.ok(characters.every((c) => c.foreground === colorToHex(theme.colors[COLORS.blue])), prompt);
   }
 });
 
