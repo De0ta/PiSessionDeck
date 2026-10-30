@@ -10,6 +10,8 @@
 
 PiSessionDeck brings a full-screen, project-oriented view of your local Pi conversations into the terminal. Search across sessions, preview the latest exchange, and return to a conversation without leaving Pi.
 
+> Thanks to [@yceachan](https://github.com/yceachan) for improving theme integration in [PR #1](https://github.com/De0ta/PiSessionDeck/pull/1), helping Pi Session Deck blend naturally with Pi and terminal colors.
+
 ## Why PiSessionDeck
 
 - **Find conversations across projects.** Group sessions by project, recent activity, model, or status. Search titles, project paths, session IDs, and message text; multiple terms use AND matching.

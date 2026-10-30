@@ -10,6 +10,8 @@
 
 PiSessionDeck 在 Pi 内提供全屏、面向项目的本地会话视图。无需离开终端，即可搜索历史、查看最近一轮问答，并恢复目标会话。
 
+> 感谢 [@yceachan](https://github.com/yceachan) 通过 [PR #1](https://github.com/De0ta/PiSessionDeck/pull/1) 改进主题适配，让 Pi Session Deck 更自然地融入 Pi 与终端的配色。
+
 ## 为什么选择 PiSessionDeck
 
 - **跨项目定位对话。** 按项目、最近活动、模型或状态分组；搜索标题、项目路径、会话 ID 和消息文本，多个关键词采用 AND 匹配。
